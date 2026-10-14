@@ -1,0 +1,2030 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Gait AI · Bệnh án dáng đi</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@500;600;700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/tensorflow/4.22.0/tf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3/dist/pose-detection.min.js"></script>
+<style>
+  :root{
+    --navy:#0B1220; --panel:#121B2E; --panel-2:#182437; --panel-3:#1E2C44;
+    --ink:#E8EDF5; --muted:#8592A6; --line:#26334A;
+    --mint:#4FD1C5; --mint-dim:#2C8F86;
+    --coral:#EF6355; --amber:#F0B429;
+    --paper:#F5F3EE; --paper-ink:#1B2130; --paper-line:#DEDAD0;
+    --disp:'Space Grotesk',sans-serif; --body:'IBM Plex Sans',sans-serif; --mono:'IBM Plex Mono',monospace;
+    --tabbar-h:64px;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;}
+  body{
+    background:var(--navy); color:var(--ink); font-family:var(--body);
+    line-height:1.5; -webkit-font-smoothing:antialiased;
+  }
+  .appshell{min-height:100vh; display:flex; flex-direction:column;}
+
+  .topbar{
+    position:sticky; top:0; z-index:20; background:rgba(11,18,32,0.92); backdrop-filter:blur(6px);
+    border-bottom:1px solid var(--line); padding:12px 16px; display:flex; align-items:center; justify-content:space-between; gap:10px;
+  }
+  .brand{display:flex; align-items:center; gap:8px;}
+  .brand .dot{width:7px;height:7px;border-radius:50%;background:var(--mint);box-shadow:0 0 8px var(--mint);}
+  .brand b{font-family:var(--disp); font-size:14.5px; font-weight:600;}
+  .casechip{
+    font-family:var(--mono); font-size:11.5px; background:var(--panel-2); border:1px solid var(--line);
+    padding:5px 10px; border-radius:99px; color:var(--muted); display:flex; align-items:center; gap:6px; max-width:56vw; overflow:hidden;
+  }
+  .casechip b{color:var(--mint); font-weight:600;}
+  .casechip span{white-space:nowrap; overflow:hidden; text-overflow:ellipsis;}
+
+  main.content{flex:1; padding:16px 14px calc(var(--tabbar-h) + 26px); max-width:920px; margin:0 auto; width:100%;}
+  .tab{display:none;}
+  .tab.active{display:block; animation:fade .18s ease;}
+  @keyframes fade{from{opacity:0; transform:translateY(4px);} to{opacity:1; transform:translateY(0);}}
+
+  nav.tabbar{
+    position:fixed; bottom:0; left:0; right:0; height:var(--tabbar-h); z-index:30;
+    background:rgba(18,27,46,0.97); backdrop-filter:blur(8px); border-top:1px solid var(--line);
+    display:flex;
+  }
+  .tabbtn{
+    flex:1; background:none; border:none; color:var(--muted); font-family:var(--body); font-size:10.5px;
+    display:flex; flex-direction:column; align-items:center; justify-content:center; gap:3px; cursor:pointer; padding:6px 2px;
+  }
+  .tabbtn .ic{font-size:18px;}
+  .tabbtn.active{color:var(--mint);}
+  .tabbtn .badge{
+    position:absolute; margin-top:-16px; margin-left:14px; background:var(--coral); color:#fff; font-size:9px;
+    width:14px; height:14px; border-radius:50%; display:flex; align-items:center; justify-content:center; font-family:var(--mono);
+  }
+
+  h1.pagetitle{font-family:var(--disp); font-weight:700; font-size:21px; margin:2px 0 4px;}
+  p.pagesub{color:var(--muted); font-size:13px; margin:0 0 16px; max-width:60ch;}
+
+  .panel{background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:18px; margin-bottom:14px;}
+  .panel h2{font-family:var(--disp); font-size:14px; font-weight:600; margin:0 0 4px;}
+  .panel .desc{color:var(--muted); font-size:12.5px; margin:0 0 12px;}
+
+  .field{margin-bottom:12px;}
+  .field label{display:block; font-size:11px; color:var(--muted); margin-bottom:5px; font-family:var(--mono); letter-spacing:.03em; text-transform:uppercase;}
+  .field input, .field select, .field textarea{
+    width:100%; background:var(--panel-2); border:1px solid var(--line); color:var(--ink);
+    border-radius:8px; padding:10px 11px; font-family:var(--body); font-size:14px;
+  }
+  .field textarea{resize:vertical; min-height:80px; font-family:var(--body);}
+  .field input:focus, .field select:focus, .field textarea:focus{outline:none; border-color:var(--mint);}
+  .field2{display:grid; grid-template-columns:1fr 1fr; gap:10px;}
+  @media(max-width:480px){.field2{grid-template-columns:1fr;}}
+
+  button{font-family:var(--disp); font-weight:600; font-size:13.5px; border:none; border-radius:9px; padding:11px 18px; cursor:pointer; transition:transform .08s, opacity .15s;}
+  button:active{transform:scale(.97);}
+  button:disabled{opacity:.4; cursor:not-allowed;}
+  .btn-primary{background:var(--mint); color:#06231F;}
+  .btn-primary:hover:not(:disabled){background:#63DBD0;}
+  .btn-ghost{background:transparent; color:var(--ink); border:1px solid var(--line);}
+  .btn-ghost:hover:not(:disabled){border-color:var(--mint); color:var(--mint);}
+  .btn-danger{background:transparent; color:var(--coral); border:1px solid rgba(239,99,85,.4);}
+  .btn-sm{padding:7px 12px; font-size:12px; border-radius:7px;}
+  .btnrow{display:flex; gap:10px; flex-wrap:wrap; margin-top:6px;}
+
+  .noteYellow{background:rgba(240,180,41,.08); border:1px solid rgba(240,180,41,.3); border-radius:10px; padding:12px 14px; font-size:12.5px; color:#E8C46A; line-height:1.6; margin-top:12px;}
+  .noteRed{background:rgba(239,99,85,.08); border:1px solid rgba(239,99,85,.3); border-radius:10px; padding:12px 14px; font-size:12.5px; color:#F0958A; line-height:1.6; margin-top:12px;}
+  .noteMint{background:rgba(79,209,197,.08); border:1px solid rgba(79,209,197,.3); border-radius:10px; padding:12px 14px; font-size:12.5px; color:#9BE6DC; line-height:1.6; margin-top:12px;}
+
+  .caselistbtn{
+    display:block; width:100%; text-align:left; background:var(--panel-2); border:1px solid var(--line); color:var(--ink);
+    border-radius:9px; padding:11px 13px; margin-bottom:8px; cursor:pointer; font-family:var(--body); font-size:13.5px;
+  }
+  .caselistbtn:hover{border-color:var(--mint);}
+  .caselistbtn .sub{display:block; font-size:11px; color:var(--muted); margin-top:2px; font-family:var(--mono);}
+
+  .drop{border:1.5px dashed var(--line); border-radius:12px; padding:26px 16px; text-align:center; cursor:pointer;}
+  .drop:hover, .drop.drag{border-color:var(--mint); background:rgba(79,209,197,.06);}
+  .drop input{display:none;}
+  .drop .icn{font-family:var(--mono); font-size:24px; color:var(--mint); margin-bottom:6px;}
+  .drop .t1{font-size:14px; font-weight:500;}
+  .drop .t2{font-size:12px; color:var(--muted); margin-top:4px;}
+
+  .stagearea{position:relative; border-radius:12px; overflow:hidden; background:#000; display:none; margin-top:14px;}
+  .stagearea video, .stagearea canvas{display:block; width:100%; height:auto;}
+  .stagearea canvas{position:absolute; top:0; left:0;}
+  .scanline{position:absolute; left:0; right:0; height:2px; background:linear-gradient(90deg,transparent,var(--mint),transparent); top:0; opacity:0; pointer-events:none;}
+  .scanline.active{animation:scan 1.4s linear infinite;}
+  @keyframes scan{0%{top:0;opacity:1;}95%{opacity:1;}100%{top:100%;opacity:0;}}
+
+  .progwrap{margin-top:16px; display:none;}
+  .progbar{height:6px; background:var(--panel-2); border-radius:99px; overflow:hidden;}
+  .progfill{height:100%; width:0%; background:linear-gradient(90deg,var(--mint-dim),var(--mint)); transition:width .2s;}
+  .progstatus{font-family:var(--mono); font-size:12px; color:var(--muted); margin-top:8px;}
+
+  .metricgrid{display:grid; grid-template-columns:repeat(auto-fit,minmax(135px,1fr)); gap:9px; margin-top:12px;}
+  .metric{background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:13px;}
+  .metric .mlabel{font-size:10.5px; color:var(--muted); font-family:var(--mono); text-transform:uppercase;}
+  .metric .mval{font-family:var(--disp); font-size:22px; font-weight:700; margin-top:4px; color:var(--mint);}
+  .metric .munit{font-size:11.5px; color:var(--muted); font-weight:400;}
+  .metric .msub{font-size:11px; color:var(--muted); margin-top:3px;}
+
+  .chartbox{background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:14px; margin-top:12px;}
+  .chartbox .ctitle{font-family:var(--disp); font-size:13px; font-weight:600; margin-bottom:8px;}
+  .legend{display:flex; gap:14px; font-size:11.5px; color:var(--muted); margin-top:8px; flex-wrap:wrap;}
+  .legend span{display:inline-flex; align-items:center; gap:6px;}
+  .legend i{width:14px; height:3px; border-radius:2px; display:inline-block;}
+
+  .flaglist{display:flex; flex-direction:column; gap:10px; margin-top:10px;}
+  .flag{background:var(--paper); color:var(--paper-ink); border-radius:10px; padding:13px 15px; border-left:4px solid var(--amber);}
+  .flag.sev-high{border-left-color:var(--coral);}
+  .flag.sev-info{border-left-color:var(--mint-dim);}
+  .flag .fico{font-family:var(--mono); font-size:10.5px; padding:3px 7px; border-radius:5px; background:var(--paper-line); display:inline-block; margin-bottom:6px;}
+  .flag.sev-high .fico{background:#F7DAD6; color:#A8352A;}
+  .flag.sev-info .fico{background:#DCEEEC; color:#1E6B63;}
+  .flag .ftitle{font-weight:600; font-size:14px; margin-bottom:3px;}
+  .flag .fdesc{font-size:12.5px; color:#4A5266;}
+  .flag .fmuscles{display:flex; flex-wrap:wrap; gap:6px; margin-top:9px;}
+  .mtag{font-family:var(--mono); font-size:10.5px; padding:3px 8px; border-radius:99px; white-space:nowrap;}
+  .mtag.weak{background:#FDE9D9; color:#9A5A12;}
+  .mtag.tone{background:#E7DCF7; color:#5B3A93;}
+
+  .checklist{display:flex; flex-direction:column; gap:2px; margin-top:8px;}
+  .checkrow{display:flex; align-items:flex-start; gap:10px; padding:10px 4px; border-bottom:1px solid var(--line);}
+  .checkrow:last-child{border-bottom:none;}
+  .checkrow input[type=checkbox]{margin-top:3px; width:17px; height:17px; accent-color:var(--mint); flex:none;}
+  .checkrow .clabel{font-size:13px;}
+  .checkrow .cfrom{font-size:11px; color:var(--muted); margin-top:2px;}
+
+  .prioritylist{margin:10px 0 0; padding:0; list-style:none;}
+  .prioritylist li{
+    display:flex; gap:10px; align-items:flex-start; background:var(--panel-2); border:1px solid var(--line);
+    border-radius:9px; padding:11px 13px; margin-bottom:8px;
+  }
+  .prioritylist .pn{font-family:var(--disp); font-weight:700; color:var(--mint); font-size:16px; flex:none; width:20px;}
+  .prioritylist .pt{font-size:13px; font-weight:500;}
+  .prioritylist .ps{font-size:11.5px; color:var(--muted); margin-top:2px;}
+  .evcard{background:var(--panel-2);border:1px solid var(--line);border-radius:10px;padding:13px;margin:10px 0;}
+  .evhead{display:flex;justify-content:space-between;gap:10px;align-items:flex-start;}
+  .evtitle{font-weight:600;font-size:13.5px;}
+  .evbadge{font-family:var(--mono);font-size:10px;padding:4px 7px;border-radius:99px;white-space:nowrap;}
+  .evbadge.support{background:rgba(79,209,197,.14);color:var(--mint);}
+  .evbadge.reduce{background:rgba(240,180,41,.14);color:#E8C46A;}
+  .evbadge.mixed{background:rgba(239,99,85,.12);color:#F0958A;}
+  .evbadge.pending{background:var(--panel-3);color:var(--muted);}
+  .evbody{font-size:12.5px;color:var(--muted);margin-top:7px;line-height:1.55;}
+  .evbody b{color:var(--ink);}
+
+
+  .eventcol{background:var(--panel-2); border:1px solid var(--line); border-radius:10px; padding:12px; margin-bottom:10px;}
+  .eventcol h3{font-family:var(--disp); font-size:12.5px; margin:0 0 8px; display:flex; align-items:center; gap:6px;}
+  .eventrow{display:flex; align-items:center; justify-content:space-between; padding:7px 4px; border-bottom:1px solid var(--line); font-family:var(--mono); font-size:12.5px;}
+  .eventrow:last-child{border-bottom:none;}
+  .eventrow button{background:none; border:none; color:var(--coral); font-size:16px; padding:2px 8px; cursor:pointer;}
+  .addeventrow{display:flex; gap:6px; margin-top:8px;}
+  .addeventrow input{flex:1; background:var(--panel-3); border:1px solid var(--line); color:var(--ink); border-radius:7px; padding:8px; font-family:var(--mono); font-size:12.5px;}
+
+  .tablewrap{overflow-x:auto; margin-top:10px;}
+  table.dtable{width:100%; border-collapse:collapse; font-size:12.5px; min-width:480px;}
+  table.dtable th{font-family:var(--mono); font-size:10px; text-transform:uppercase; color:var(--muted); text-align:left; padding:8px 9px; border-bottom:1px solid var(--line);}
+  table.dtable td{padding:9px; border-bottom:1px solid var(--line); color:var(--ink);}
+  table.dtable tr:last-child td{border-bottom:none;}
+
+  .plancard{background:var(--paper); color:var(--paper-ink); border-radius:12px; padding:16px 18px; margin-top:10px;}
+  .plancard h3{font-family:var(--disp); font-size:14px; margin:0 0 4px; display:flex; gap:8px; align-items:center;}
+  .plancard .ptag{font-family:var(--mono); font-size:10px; background:var(--paper-ink); color:var(--paper); padding:2px 7px; border-radius:5px;}
+  .plancard .psection{margin-top:10px;}
+  .plancard .ptitle2{font-family:var(--mono); font-size:10.5px; text-transform:uppercase; color:#5B6478; margin-bottom:4px;}
+  .plancard ul{margin:6px 0 0; padding-left:18px;}
+  .plancard li{font-size:13px; margin-bottom:5px; color:#3A4256;}
+
+  .empty{text-align:center; color:var(--muted); font-size:12.5px; padding:18px;}
+  .gatewrap{text-align:center; padding:30px 16px;}
+  .gatewrap .gicon{font-size:30px; margin-bottom:10px;}
+  .gatewrap p{color:var(--muted); font-size:13.5px; max-width:38ch; margin:0 auto 14px;}
+
+  .histrow{display:flex; align-items:center; justify-content:space-between; padding:11px 4px; border-bottom:1px solid var(--line); font-size:12.5px;}
+  .histrow:last-child{border-bottom:none;}
+  .histrow .hd{font-family:var(--mono); color:var(--muted); font-size:11px;}
+  .trend{font-family:var(--mono); font-size:11px; padding:2px 6px; border-radius:5px;}
+  .trend.up{background:rgba(79,209,197,.15); color:var(--mint);}
+  .trend.down{background:rgba(239,99,85,.15); color:var(--coral);}
+  .trend.flat{background:var(--panel-3); color:var(--muted);}
+
+  .disclaimer{font-size:11.5px; color:var(--muted); border-top:1px solid var(--line); padding-top:14px; margin-top:18px; line-height:1.6;}
+  .disclaimer b{color:var(--ink);}
+
+  @media print{
+    .tabbar, .topbar, button{display:none !important;}
+    body{background:#fff; color:#111;}
+    .tab{display:block !important;}
+    #tab-report{display:block !important;}
+    .tab:not(#tab-report){display:none !important;}
+    .panel{background:#fff; border:1px solid #ccc;}
+    .metric{background:#fff;}
+  }
+
+  .bio-phase-grid{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:7px;margin:12px 0}
+  .bio-phase{padding:9px 4px;font-size:11px;border:1px solid var(--line);background:var(--panel-2);color:var(--ink);border-radius:9px;min-height:66px}
+  .bio-phase.selected{border-color:var(--mint);background:rgba(79,209,197,.15);color:var(--mint)}
+  .bio-phase small{display:block;color:var(--muted);font-size:10px;margin-top:4px}
+  .bio-detail{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:9px}
+  .bio-detail>div{background:var(--panel-2);border:1px solid var(--line);padding:12px;border-radius:9px;font-size:12.5px}
+  .bio-detail b{display:block;color:var(--mint);margin-bottom:5px}
+  @media(max-width:460px){.bio-phase-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+</style>
+</head>
+<body>
+<div class="appshell">
+
+  <div class="topbar">
+    <div class="brand"><span class="dot"></span><b>Gait AI · Bệnh án dáng đi</b><span style="font-family:var(--mono);font-size:9px;color:var(--muted);margin-left:4px;">V3.5.0 · THƯ VIỆN SINH CƠ HỌC</span></div>
+    <div class="casechip" id="caseChip"><span>Chưa có hồ sơ</span></div>
+  </div>
+
+  <main class="content">
+
+    <!-- TAB 1: HỒ SƠ -->
+    <section class="tab active" id="tab-profile">
+      <h1 class="pagetitle">Hồ sơ lâm sàng</h1>
+      <p class="pagesub">Nhập hồ sơ trước khi quay/phân tích video. Dữ liệu lưu riêng tư trong tài khoản Claude này (không chia sẻ), <b style="color:var(--ink)">không phải hệ thống HIS/EMR đạt chuẩn</b> — chỉ dùng cho mục đích thử nghiệm nội bộ.</p>
+
+      <div class="panel" id="caseListPanel">
+        <h2>Hồ sơ đã lưu</h2>
+        <p class="desc">Chạm để mở lại một hồ sơ, hoặc nhập mã BA mới bên dưới để tạo hồ sơ mới.</p>
+        <div id="storageWarn"></div>
+        <div id="caseListArea"><div class="empty">Đang tải danh sách…</div></div>
+        <div class="btnrow"><button class="btn-ghost btn-sm" id="refreshListBtn">↻ Tải lại danh sách</button></div>
+      </div>
+
+      <div class="panel">
+        <h2>Thông tin bệnh nhân</h2>
+        <div class="field"><label>Họ và tên</label><input id="f_name" placeholder="Nguyễn Văn A"></div>
+        <div class="field2">
+          <div class="field"><label>Mã BA</label><input id="f_id" placeholder="BA-2026-001"></div>
+          <div class="field"><label>Ngày lượng giá</label><input id="f_date" type="date"></div>
+        </div>
+        <div class="field2">
+          <div class="field"><label>Chẩn đoán</label>
+            <select id="f_diag">
+              <option value="">— Chọn —</option>
+              <option>Đột quỵ</option><option>Chấn thương sọ não</option><option>Tổn thương tủy sống</option>
+              <option>Hậu ICU / yếu cơ toàn thân</option><option>Chấn thương chỉnh hình chi dưới</option>
+              <option>Bệnh lý thần kinh cơ khác</option><option>Khác</option>
+            </select>
+          </div>
+          <div class="field"><label>Bên ảnh hưởng</label>
+            <select id="f_side"><option value="">— Chọn —</option><option>Trái</option><option>Phải</option><option>Hai bên</option><option>Không xác định</option></select>
+          </div>
+        </div>
+        <div class="field"><label>Vị trí / kiểu tổn thương nổi trội</label>
+          <select id="f_neurotype">
+            <option value="">— Chưa xác định / không áp dụng —</option>
+            <option>Đường tháp / vận động trung ương</option>
+            <option>Tiểu não / thất điều</option>
+            <option>Thân não</option>
+            <option>Đồi thị / đường cảm giác</option>
+            <option>Tiền đình / thăng bằng</option>
+            <option>Tổn thương tủy không hoàn toàn</option>
+            <option>Tổn thương tủy hoàn toàn</option>
+            <option>Yếu mắc phải tại hồi sức / mất điều kiện thể lực</option>
+            <option>Đa cơ chế / chưa phân loại</option>
+          </select>
+          <div class="desc" style="margin-top:6px">Chỉ dùng để định hướng giả thuyết cần kiểm tra; không tự tạo chẩn đoán từ video.</div>
+        </div>
+        <div class="field2">
+          <div class="field"><label>Dụng cụ trợ giúp</label>
+            <select id="f_device"><option value="">— Chọn —</option><option>Không</option><option>Gậy</option><option>Khung tập đi</option><option>Nạng</option><option>Nẹp AFO</option><option>Khác</option></select>
+          </div>
+          <div class="field"><label>Mức trợ giúp</label>
+            <select id="f_assist"><option value="">— Chọn —</option><option>Độc lập</option><option>Giám sát</option><option>Hỗ trợ tối thiểu</option><option>Hỗ trợ trung bình</option><option>Hỗ trợ tối đa</option><option>Phụ thuộc hoàn toàn</option></select>
+          </div>
+        </div>
+        <div class="field"><label>Mục tiêu đi bộ chính</label>
+          <select id="f_goal"><option value="">— Chọn —</option><option>Đi an toàn trong phòng</option><option>Đi lại trong nhà</option><option>Đi lại cộng đồng</option><option>Khác</option></select>
+        </div>
+        <div class="field2">
+          <div class="field"><label>Tốc độ đi mục tiêu cá thể hóa (m/s)</label><input id="f_targetspeed" type="number" step="0.05" placeholder="VD: 0.6"></div>
+          <div class="field"><label>Ưu tiên người bệnh</label>
+            <select id="f_priority"><option value="">— Chọn —</option><option>An toàn / không ngã</option><option>Tốc độ</option><option>Sức bền</option><option>Độc lập chức năng</option></select>
+          </div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Sàng lọc an toàn trước khi kiểm tra dáng đi</h2>
+        <p class="desc">Bắt buộc xác nhận trước khi mở tab Video.</p>
+        <div class="field2">
+          <div class="field"><label>Cho phép test</label>
+            <select id="f_allow"><option value="">— Chọn —</option><option>Có</option><option>Không</option></select>
+          </div>
+          <div class="field"><label>Nguy cơ té ngã</label>
+            <select id="f_fallrisk"><option value="">— Chọn —</option><option>Thấp</option><option>Trung bình</option><option>Cao</option></select>
+          </div>
+        </div>
+        <div class="field2">
+          <div class="field"><label>Đau (0–10)</label><input id="f_pain" type="number" min="0" max="10" value="0"></div>
+          <div class="field"><label>Môi trường test</label>
+            <select id="f_env"><option value="">— Chọn —</option><option>Ổn định</option><option>Không ổn định</option></select>
+          </div>
+        </div>
+        <div id="allowWarn"></div>
+      </div>
+
+      <div class="btnrow">
+        <button class="btn-primary" id="saveCaseBtn">💾 Lưu hồ sơ</button>
+        <button class="btn-ghost" id="newCaseBtn">+ Hồ sơ mới</button>
+        <button class="btn-danger btn-sm" id="deleteCaseBtn" style="display:none;">🗑 Xoá hồ sơ này</button>
+      </div>
+      <div id="saveMsg"></div>
+    </section>
+
+    <!-- TAB 2: VIDEO -->
+    <section class="tab" id="tab-video">
+      <h1 class="pagetitle">Video &amp; phân tích AI</h1>
+      <p class="pagesub">Hai hướng quay độc lập: <b>mặt phẳng dọc bên — bắt buộc</b> để phân tích chu kỳ và động học chi dưới; <b>mặt phẳng chính diện — bổ sung</b> để phân tích chậu–thân và bù trừ chính diện.</p>
+      <div id="videoGate"></div>
+      <div id="videoContent" style="display:none;">
+        <div class="panel">
+          <h2>Điều kiện đo · bắt buộc cho dữ liệu nghiên cứu</h2>
+          <p class="desc">Metadata mô tả đúng điều kiện tạo video. Measurement Layer không dùng các trường này để thay đổi phép đo.</p>
+          <div class="field2">
+            <div class="field"><label>Bên ảnh hưởng chính</label><select id="mc_side"><option value="">— Chọn —</option><option>Trái</option><option>Phải</option><option>Hai bên</option><option>Chưa xác định</option></select></div>
+            <div class="field"><label>Tốc độ yêu cầu</label><select id="mc_speed"><option value="">— Chọn —</option><option>Tự chọn thoải mái</option><option>Nhanh an toàn</option><option>Chậm có chủ đích</option><option>Khác</option></select></div>
+          </div>
+          <div class="field2">
+            <div class="field"><label>AFO trong lần quay</label><select id="mc_afo"><option value="">— Chọn —</option><option>Không dùng AFO</option><option>AFO có khớp</option><option>AFO không khớp</option><option>AFO khác</option><option>Không xác định</option></select></div>
+            <div class="field"><label>Dụng cụ trợ giúp trong lần quay</label><select id="mc_device"><option value="">— Chọn —</option><option>Không</option><option>Gậy</option><option>Khung tập đi</option><option>Nạng</option><option>Khác</option></select></div>
+          </div>
+          <div class="field2">
+            <div class="field"><label>Mức trợ giúp thực tế</label><select id="mc_assist"><option value="">— Chọn —</option><option>Độc lập</option><option>Giám sát</option><option>Hỗ trợ tối thiểu</option><option>Hỗ trợ trung bình</option><option>Hỗ trợ tối đa</option></select></div>
+            <div class="field"><label>Giày dép</label><select id="mc_footwear"><option value="">— Chọn —</option><option>Giày thường ngày</option><option>Giày bệnh viện</option><option>Chân trần</option><option>Khác</option></select></div>
+          </div>
+          <div class="field2">
+            <div class="field"><label>Mặt phẳng / bề mặt đi</label><input id="mc_surface" placeholder="VD: hành lang phẳng, nền cứng"></div>
+            <div class="field"><label>Số chu kỳ tối thiểu mong muốn</label><input id="mc_cycles" type="number" min="1" value="3"></div>
+          </div>
+          <div class="field"><label>Ghi chú điều kiện đo</label><input id="mc_note" placeholder="VD: WITH AFO; không quay WITHOUT AFO vì không an toàn"></div>
+          <div id="mcWarn"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Kiểm soát chất lượng video · V3.4.3</h2>
+          <div class="noteYellow"><b>Subject Lock:</b> hệ thống theo dõi liên tục người bệnh mục tiêu. Frame nghi mất/chuyển đối tượng sẽ bị loại; tỷ lệ loại cao sẽ khóa diễn giải nghiên cứu.</div>
+          <div class="field2">
+            <div class="field"><label>Video chính diện</label><select id="qc_front_orientation"><option value="">— Chọn —</option><option value="portrait">Dọc · chuẩn</option></select></div>
+            <div class="field"><label>Video bên</label><select id="qc_side_orientation"><option value="">— Chọn —</option><option value="landscape">Ngang · chuẩn</option></select></div>
+          </div>
+          <div class="field2">
+            <div class="field"><label>Số người khác lọt khung</label><input id="qc_bystanders" type="number" min="0" value="0"></div>
+            <div class="field"><label>Toàn thân người bệnh luôn trong khung</label><select id="qc_fullbody"><option value="">— Chọn —</option><option value="yes">Có</option><option value="no">Không</option></select></div>
+          </div>
+          <div id="qcStatus"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Tải video</h2>
+          <label class="drop" id="dropZone">
+            <input type="file" id="fileInput" accept="video/*">
+            <div class="icn">▲</div>
+            <div class="t1" id="dropText">Chạm để chọn video, hoặc kéo-thả vào đây</div>
+            <div class="t2">MP4 / MOV — khuyến nghị dưới 15 giây</div>
+          </label>
+          <div class="field" style="margin-top:14px;">
+            <label>Chiều cao người bệnh (cm) — tuỳ chọn, để ước tính chiều dài bước &amp; tốc độ</label>
+            <input type="number" id="heightInput" placeholder="VD: 165">
+          </div>
+          <div class="stagearea" id="stageArea">
+            <video id="video" playsinline muted></video>
+            <canvas id="overlay"></canvas>
+            <div class="scanline" id="scanline"></div>
+          </div>
+          <div class="btnrow">
+            <button class="btn-primary" id="analyzeBtn" disabled>Phân tích dáng đi</button>
+            <button class="btn-ghost" id="resetVideoBtn" style="display:none;">Chọn video khác</button>
+          </div>
+          <div class="progwrap" id="progWrap">
+            <div class="progbar"><div class="progfill" id="progFill"></div></div>
+            <div class="progstatus" id="progStatus">Đang khởi động…</div>
+          </div>
+        </div>
+        <div class="panel" style="margin-top:16px;">
+          <h2>Video chính diện · bổ sung</h2>
+          <p class="desc">Quay người bệnh đi về phía camera hoặc rời xa camera, toàn thân trong khung. Video này được xử lý bằng một pipeline độc lập và không trộn landmark với video dọc bên.</p>
+          <label class="drop" id="frontDropZone">
+            <input type="file" id="frontFileInput" accept="video/*">
+            <div class="icn">▲</div>
+            <div class="t1" id="frontDropText">Chạm để chọn video chính diện</div>
+            <div class="t2">MP4 / MOV — bổ sung, không bắt buộc</div>
+          </label>
+          <div class="stagearea" id="frontStageArea" style="display:none; margin-top:14px;">
+            <video id="frontVideo" playsinline muted></video>
+            <canvas id="frontOverlay"></canvas>
+            <div class="scanline" id="frontScanline"></div>
+          </div>
+          <div class="btnrow">
+            <button class="btn-primary" id="frontAnalyzeBtn" disabled>Phân tích chính diện</button>
+            <button class="btn-ghost" id="frontResetVideoBtn" style="display:none;">Chọn video chính diện khác</button>
+          </div>
+          <div class="progwrap" id="frontProgWrap">
+            <div class="progbar"><div class="progfill" id="frontProgFill"></div></div>
+            <div class="progstatus" id="frontProgStatus">Đang khởi động…</div>
+          </div>
+          <div id="frontResult" class="noteYellow" style="display:none; margin-top:12px;"></div>
+        </div>
+        <div class="panel" id="videoDoneNote" style="display:none;">
+          <h2>✓ Đã phân tích xong</h2>
+          <p class="desc" style="margin:0;">Chuyển sang tab <b style="color:var(--ink)">Sự kiện</b> để kiểm tra/chỉnh các điểm chạm gót AI phát hiện, hoặc qua thẳng <b style="color:var(--ink)">Lập luận</b> / <b style="color:var(--ink)">Báo cáo</b>.</p>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 3: SỰ KIỆN -->
+    <section class="tab" id="tab-events">
+      <h1 class="pagetitle">Sự kiện chạm gót</h1>
+      <p class="pagesub">Kiểm tra và chỉnh tay các điểm AI tự động phát hiện — xoá điểm sai, thêm điểm bị bỏ sót — rồi tính lại thông số.</p>
+      <div id="eventsGate"></div>
+      <div id="eventsContent" style="display:none;">
+        <div class="panel">
+          <div class="eventcol">
+            <h3>🦵 Chân trái — <span id="countL">0</span> điểm</h3>
+            <div id="listL"></div>
+            <div class="addeventrow"><input type="number" step="0.01" id="addL" placeholder="Thời điểm (giây)"><button class="btn-ghost btn-sm" id="addLBtn">+ Thêm</button></div>
+          </div>
+          <div class="eventcol">
+            <h3>🦵 Chân phải — <span id="countR">0</span> điểm</h3>
+            <div id="listR"></div>
+            <div class="addeventrow"><input type="number" step="0.01" id="addR" placeholder="Thời điểm (giây)"><button class="btn-ghost btn-sm" id="addRBtn">+ Thêm</button></div>
+          </div>
+          <div class="btnrow"><button class="btn-primary" id="recomputeBtn">↻ Tính lại thông số</button></div>
+          <div id="recomputeMsg"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 4: CHU KỲ -->
+    <section class="tab" id="tab-cycles">
+      <h1 class="pagetitle">Chu kỳ dáng đi</h1>
+      <p class="pagesub">Thông số từng chu kỳ riêng lẻ — giúp thấy độ biến thiên giữa các bước thay vì chỉ số trung bình.</p>
+      <div id="cyclesGate"></div>
+      <div id="cyclesContent" style="display:none;">
+        <div class="panel">
+          <h2>Chân trái</h2>
+          <div class="tablewrap"><table class="dtable" id="cycleTableL"></table></div>
+        </div>
+        <div class="panel">
+          <h2>Chân phải</h2>
+          <div class="tablewrap"><table class="dtable" id="cycleTableR"></table></div>
+        </div>
+      </div>
+    </section>
+
+
+    <!-- THƯ VIỆN THAM CHIẾU: không thay đổi Measurement Layer -->
+    <section class="tab" id="tab-biomechanics">
+      <h1 class="pagetitle">Sinh cơ học dáng đi</h1>
+      <p class="pagesub">Thư viện tham chiếu 8 giai đoạn theo phân loại Perry–Burnfield. Tách biệt kiến thức tham chiếu, số đo video và kết luận khám trực tiếp.</p>
+      <div class="panel">
+        <h2>Chọn giai đoạn trong chu kỳ</h2>
+        <p class="desc">Tỷ lệ phần trăm là mốc quy ước xấp xỉ ở người trưởng thành đi bộ điển hình; không phải ngưỡng chẩn đoán đột quỵ.</p>
+        <div id="bioPhaseButtons" class="bio-phase-grid"></div>
+        <h2 id="bioPhaseTitle"></h2>
+        <div id="bioPhaseDetails" class="bio-detail"></div>
+      </div>
+      <div class="panel">
+        <h2>Đối chiếu dữ liệu của người bệnh</h2>
+        <div id="bioPatient" class="noteYellow">Chưa có dữ liệu video. Phân tích video để xem các góc khớp ước tính.</div>
+        <p class="desc" style="margin-top:12px">Góc cổ chân từ ba mốc gối–cổ chân–ngón chân là góc hình học 2 chiều, <b>không tương đương</b> góc gấp mu cổ chân lâm sàng. Không có dữ liệu điện cơ nên không được suy ra cơ đang hoạt động hay yếu cơ từ video.</p>
+      </div>
+      <div class="panel">
+        <h2>Quy tắc sử dụng trong nghiên cứu</h2>
+        <p class="desc">Thư viện chỉ cung cấp kiến thức và câu hỏi khám. Không thay đổi thuật toán phát hiện tiếp xúc ban đầu, chu kỳ, các góc khớp, ngưỡng cảnh báo hoặc kết quả AI nguyên bản của V3.4.3. Mọi so sánh với người bình thường phải dựa trên bộ dữ liệu tham chiếu đã được xác thực, không dùng đường cong minh họa làm chuẩn.</p>
+        <p class="desc">Tài liệu nền: Perry J, Burnfield JM. <i>Gait Analysis: Normal and Pathological Function</i>, ấn bản 2, SLACK Incorporated, 2010. Các mô tả cơ là chức năng cơ sinh học điển hình, không phải dữ liệu điện cơ của người bệnh.</p>
+      </div>
+    </section>
+
+    <!-- TAB 5: LẬP LUẬN -->
+    <section class="tab" id="tab-reasoning">
+      <h1 class="pagetitle">Trợ lý lập luận lâm sàng</h1>
+      <p class="pagesub">AI chỉ gợi ý hướng cần kiểm tra — kết luận cuối cùng luôn thuộc về kỹ thuật viên.</p>
+      <div id="reasoningGate"></div>
+      <div id="reasoningContent" style="display:none;">
+
+        <div class="panel">
+          <h2>Bản đồ khiếm khuyết cần xác nhận</h2>
+          <div class="noteYellow">⚠ <b>AI chỉ mô tả dấu hiệu và định hướng lượng giá.</b> Vị trí tổn thương chỉ thay đổi mức ưu tiên giả thuyết. Không suy trực tiếp yếu cơ, tăng trương lực, thất điều hay rối loạn cảm giác chỉ từ video.</div>
+          <div class="tablewrap"><table class="dtable" id="muscleTable"></table></div>
+        </div>
+
+        <div class="panel">
+          <h2>Bộ ưu tiên phục hồi chức năng</h2>
+          <p class="desc">Xếp theo mức độ ảnh hưởng — nên xử lý mục ưu tiên cao trước.</p>
+          <ol class="prioritylist" id="priorityList"></ol>
+        </div>
+
+        <div class="panel">
+          <h2>KTV xác nhận giả thuyết bằng lượng giá trực tiếp</h2>
+          <div class="noteYellow">Mỗi mục có 3 trạng thái: <b>Chưa lượng giá · Trong giới hạn · Bất thường</b>. Video chỉ tạo giả thuyết; kết quả khám trực tiếp mới bổ sung hoặc làm giảm mức hỗ trợ cho giả thuyết.</div>
+          <div id="clinicalAssessmentArea" style="margin-top:12px"></div>
+          <div class="btnrow"><button class="btn-primary" id="saveClinicalBtn">💾 LƯU LƯỢNG GIÁ TRỰC TIẾP</button><button class="btn-ghost" id="clearClinicalBtn">Xóa dữ liệu lượng giá</button></div>
+          <div id="clinicalSaveMsg"></div>
+        </div>
+
+        <div class="panel" id="evidenceUpdatePanel">
+          <h2>Đối chiếu AI ↔ khám trực tiếp</h2>
+          <p class="desc">Tự động cập nhật mức hỗ trợ của từng giả thuyết sau khi KTV lưu lượng giá trực tiếp. Đây là tổng hợp bằng chứng, không phải chẩn đoán tự động.</p>
+          <div id="evidenceUpdateArea"><div class="empty">Lưu lượng giá trực tiếp để hệ thống đối chiếu bằng chứng.</div></div>
+        </div>
+
+        <div class="panel">
+          <h2>Kết luận của KTV</h2>
+          <div class="field"><textarea id="ktvConclusion" placeholder="Nêu impairment chính, compensation, yếu tố môi trường/dụng cụ và ưu tiên điều trị…"></textarea></div>
+          <div class="btnrow"><button class="btn-primary" id="saveAssessmentBtn">💾 Lưu lượng giá vào hồ sơ</button></div>
+          <div id="saveAssessMsg"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- TAB 6: BÁO CÁO -->
+    <section class="tab" id="tab-report">
+      <h1 class="pagetitle">Báo cáo</h1>
+      <p class="pagesub">Tổng hợp lần lượng giá hiện tại và lịch sử các lần trước của hồ sơ này.</p>
+      <div id="reportGate"></div>
+      <div id="reportContent" style="display:none;">
+
+        <div class="panel" id="integratedWorkflowPanel">
+          <h2>Quy trình tích hợp: AI → KTV → Báo cáo chung</h2>
+          <p class="desc">Hai nguồn bằng chứng được lưu riêng. Kết luận tích hợp chỉ hoàn tất khi KTV đã lượng giá và xác nhận.</p>
+          <div id="integratedWorkflowStatus"></div>
+          <div class="btnrow"><button class="btn-ghost btn-sm" id="goClinicalWorkflowBtn" type="button">→ Đến lượng giá KTV</button></div>
+        </div>
+        <div class="panel" id="integratedReportPanel">
+          <h2>Báo cáo tích hợp AI và KTV</h2>
+          <div id="integratedReportContent"></div>
+        </div>
+        <div class="panel">
+          <h2>Điều kiện đo &amp; nguồn gốc dữ liệu</h2>
+          <div id="measurementConditionReport"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Thông số dáng đi (lần hiện tại)</h2>
+          <div class="metricgrid" id="metricGrid"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Biểu đồ góc khớp theo chu kỳ dáng đi</h2>
+          <div class="chartbox">
+            <div class="ctitle">Góc gập khớp GỐI (độ)</div>
+            <canvas id="kneeChart" height="140"></canvas>
+            <div class="legend"><span><i style="background:#4FD1C5"></i>Trái</span><span><i style="background:#EF6355"></i>Phải</span><span><i style="background:#3A4256;opacity:.3"></i>Dải tham chiếu (minh hoạ)</span></div>
+          </div>
+          <div class="chartbox">
+            <div class="ctitle">Góc gập khớp HÁNG (độ)</div>
+            <canvas id="hipChart" height="140"></canvas>
+            <div class="legend"><span><i style="background:#4FD1C5"></i>Trái</span><span><i style="background:#EF6355"></i>Phải</span><span><i style="background:#3A4256;opacity:.3"></i>Dải tham chiếu (minh hoạ)</span></div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <h2>Bất thường phát hiện được</h2>
+          <div class="flaglist" id="flagList"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Giả thuyết và lượng giá cần xác nhận</h2>
+          <div id="planList"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Bằng chứng lượng giá trực tiếp của KTV</h2>
+          <div id="clinicalReport" class="desc">Chưa lưu lượng giá trực tiếp.</div>
+        </div>
+
+        <div class="panel">
+          <h2>Tổng hợp đối chiếu bằng chứng V3.4.3 · DATA SEMANTICS · PROVENANCE LOCK</h2>
+          <div id="evidenceReport"><div class="empty">Chưa có đối chiếu bằng chứng.</div></div>
+        </div>
+
+        <div class="panel">
+          <h2>Tổng hợp đa miền → vấn đề → mục tiêu → can thiệp V3.4.3</h2>
+          <p class="desc">Chỉ sinh kế hoạch từ các khiếm khuyết đã được KTV xác nhận. Dấu hiệu động học từ video không tự động trở thành nguyên nhân hay chỉ định điều trị.</p>
+          <div id="v34Plan"></div>
+        </div>
+
+        <div class="panel">
+          <h2>Lịch sử lượng giá của hồ sơ này</h2>
+          <div id="historyArea"></div>
+        </div>
+
+        <div class="btnrow"><button class="btn-primary" onclick="window.print()">🖨 In / Xuất báo cáo</button></div>
+
+        <div class="disclaimer">
+          <b>Lưu ý:</b> Đây là công cụ hỗ trợ ra quyết định dựa trên ước lượng tư thế 2D từ một góc camera, không phải thiết bị chẩn đoán. Độ chính xác phụ thuộc chất lượng video, góc quay và độ che khuất. Không dùng thay thế thăm khám lâm sàng trực tiếp. Mọi kế hoạch điều trị cần được kỹ thuật viên/bác sĩ PHCN xác nhận. Dữ liệu lưu trữ riêng tư trong phiên làm việc này, không phải hệ thống hồ sơ bệnh án đạt chuẩn.
+        </div>
+      </div>
+    </section>
+
+  </main>
+
+  <nav class="tabbar">
+    <button class="tabbtn active" data-tab="profile"><span class="ic">👤</span>Hồ sơ</button>
+    <button class="tabbtn" data-tab="video"><span class="ic">🎥</span>Video</button>
+    <button class="tabbtn" data-tab="events"><span class="ic">📍</span>Sự kiện</button>
+    <button class="tabbtn" data-tab="cycles"><span class="ic">🔁</span>Chu kỳ</button>
+    <button class="tabbtn" data-tab="biomechanics"><span class="ic">🦴</span>Sinh cơ học</button>
+    <button class="tabbtn" data-tab="reasoning"><span class="ic">🧠</span>Lập luận</button>
+    <button class="tabbtn" data-tab="report"><span class="ic">📄</span>Báo cáo</button>
+  </nav>
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  // ============ STATE ============
+  const State = {
+    profile: null,       // current case profile object
+    caseId: null,        // storage key suffix (mã BA)
+    assessment: null,     // current in-memory assessment (series, events, analysis, flags, checklist, conclusion)
+    history: []           // lightweight past assessments loaded with case
+  };
+
+  const STORE_PREFIX = 'gaitcase:';
+  const BUILD_TAG = 'V3.5.0 · THƯ VIỆN SINH CƠ HỌC';
+
+  const hasClaudeStorage = !!(window.storage && typeof window.storage.set === 'function' && typeof window.storage.get === 'function');
+  let hasLocalStorage = false;
+  try{ const k='__gait_ai_test__'; localStorage.setItem(k,'1'); localStorage.removeItem(k); hasLocalStorage = true; }catch(e){ hasLocalStorage = false; }
+  const hasStorage = hasClaudeStorage || hasLocalStorage;
+  const storageMode = hasClaudeStorage ? 'claude' : (hasLocalStorage ? 'local' : 'none');
+
+  // Lớp trừu tượng lưu trữ: ưu tiên window.storage (khi chạy trong app Claude),
+  // tự chuyển sang localStorage của trình duyệt khi chạy như trang độc lập (vd: mở bằng Chrome).
+  const Store = {
+    async set(key, value, shared){
+      if(hasClaudeStorage) return await window.storage.set(key, value, shared);
+      if(hasLocalStorage){ localStorage.setItem(key, value); return {key, value, shared: !!shared}; }
+      throw new Error('Không có cơ chế lưu trữ khả dụng trong trình duyệt này.');
+    },
+    async get(key, shared){
+      if(hasClaudeStorage) return await window.storage.get(key, shared);
+      if(hasLocalStorage){
+        const v = localStorage.getItem(key);
+        if(v===null) throw new Error('not found');
+        return {key, value:v, shared: !!shared};
+      }
+      throw new Error('Không có cơ chế lưu trữ khả dụng trong trình duyệt này.');
+    },
+    async delete(key, shared){
+      if(hasClaudeStorage) return await window.storage.delete(key, shared);
+      if(hasLocalStorage){ localStorage.removeItem(key); return {key, deleted:true, shared: !!shared}; }
+      throw new Error('Không có cơ chế lưu trữ khả dụng trong trình duyệt này.');
+    },
+    async list(prefix, shared){
+      if(hasClaudeStorage) return await window.storage.list(prefix, shared);
+      if(hasLocalStorage){
+        const keys=[];
+        for(let i=0;i<localStorage.length;i++){ const k=localStorage.key(i); if(k && (!prefix || k.indexOf(prefix)===0)) keys.push(k); }
+        return {keys, prefix, shared: !!shared};
+      }
+      throw new Error('Không có cơ chế lưu trữ khả dụng trong trình duyệt này.');
+    }
+  };
+
+  const $ = (id)=>document.getElementById(id);
+
+  // ============ TABS ============
+  const tabBtns = document.querySelectorAll('.tabbtn');
+  const tabs = document.querySelectorAll('.tab');
+  function gotoTab(name){
+    tabBtns.forEach(b=>b.classList.toggle('active', b.dataset.tab===name));
+    tabs.forEach(t=>t.classList.toggle('active', t.id==='tab-'+name));
+    if(name==='events') renderEventsTab();
+    if(name==='cycles') renderCyclesTab();
+    if(name==='reasoning') renderReasoningTab();
+    if(name==='biomechanics') renderBiomechanicsTab();
+    if(name==='report') renderReportTab();
+    if(name==='video') renderVideoGate();
+    window.scrollTo({top:0, behavior:'instant'});
+  }
+  tabBtns.forEach(b=> b.addEventListener('click', ()=> gotoTab(b.dataset.tab)));
+
+  function updateCaseChip(){
+    const chip = $('caseChip');
+    if(State.profile && State.profile.id){
+      chip.innerHTML = `<b>${State.profile.id}</b><span>${State.profile.name? ' · '+State.profile.name : ''}</span>`;
+    } else {
+      chip.innerHTML = `<span>Chưa có hồ sơ</span>`;
+    }
+  }
+
+  // ============ PROFILE TAB ============
+  const pf = {
+    name:'f_name', id:'f_id', date:'f_date', diag:'f_diag', neurotype:'f_neurotype', side:'f_side',
+    device:'f_device', assist:'f_assist', goal:'f_goal', targetspeed:'f_targetspeed',
+    priority:'f_priority', allow:'f_allow', fallrisk:'f_fallrisk', pain:'f_pain', env:'f_env'
+  };
+
+  function todayISO(){ const d=new Date(); return d.toISOString().slice(0,10); }
+  $('f_date').value = todayISO();
+
+  function readProfileForm(){
+    const p = {};
+    Object.keys(pf).forEach(k=> p[k] = $(pf[k]).value.trim());
+    return p;
+  }
+  function writeProfileForm(p){
+    Object.keys(pf).forEach(k=> { $(pf[k]).value = (p && p[k]!==undefined) ? p[k] : ''; });
+  }
+
+  function checkAllowWarn(){
+    const allow = $('f_allow').value;
+    const warn = $('allowWarn');
+    if(allow==='Không'){
+      warn.innerHTML = `<div class="noteRed">🚫 Hồ sơ đánh dấu <b>KHÔNG cho phép test</b>. Tab Video sẽ bị khoá cho đến khi mục này đổi thành "Có".</div>`;
+    } else { warn.innerHTML = ''; }
+  }
+  $('f_allow').addEventListener('change', checkAllowWarn);
+
+  async function loadCaseList(){
+    const area = $('caseListArea');
+    const warnEl = $('storageWarn');
+    if(storageMode==='claude'){
+      warnEl.innerHTML = '';
+    } else if(storageMode==='local'){
+      warnEl.innerHTML = `<div class="noteMint">💾 Đang lưu bằng bộ nhớ cục bộ của trình duyệt này (localStorage) — hồ sơ sẽ còn lại nếu mở lại đúng file này trên đúng trình duyệt/thiết bị, nhưng sẽ mất nếu xoá dữ liệu duyệt web hoặc đổi sang trình duyệt khác. Không đồng bộ giữa các thiết bị.</div>`;
+    } else {
+      warnEl.innerHTML = `<div class="noteYellow">⚠ Trình duyệt này chặn cả hai cơ chế lưu trữ. App vẫn dùng được cho phiên làm việc hiện tại nhưng sẽ mất dữ liệu khi đóng trang.</div>`;
+    }
+    if(!hasStorage){
+      area.innerHTML = `<div class="empty">Chế độ phiên làm việc — không có hồ sơ đã lưu trước đó.</div>`;
+      return;
+    }
+    area.innerHTML = `<div class="empty">Đang tải danh sách…</div>`;
+    try{
+      const res = await Store.list(STORE_PREFIX, false);
+      const keys = (res && res.keys) || [];
+      if(!keys.length){ area.innerHTML = `<div class="empty">Chưa có hồ sơ nào được lưu. Nhập thông tin bên dưới để tạo hồ sơ đầu tiên.</div>`; return; }
+      const items = await Promise.all(keys.map(async k=>{
+        try{ const r = await Store.get(k, false); return r? JSON.parse(r.value) : null; }
+        catch(e){ return null; }
+      }));
+      area.innerHTML = '';
+      const valid = items.filter(Boolean);
+      if(!valid.length){ area.innerHTML = `<div class="empty">Chưa có hồ sơ nào được lưu. Nhập thông tin bên dưới để tạo hồ sơ đầu tiên.</div>`; return; }
+      valid.sort((a,b)=> (b.updatedAt||0)-(a.updatedAt||0)).forEach(c=>{
+        const btn = document.createElement('button');
+        btn.className='caselistbtn';
+        btn.innerHTML = `${c.profile.name||'(chưa có tên)'} <span class="sub">${c.profile.id} · ${c.profile.diag||'—'} · ${(c.assessments||[]).length} lần lượng giá</span>`;
+        btn.addEventListener('click', ()=> openCase(c.profile.id));
+        area.appendChild(btn);
+      });
+    }catch(e){
+      // Trên lần dùng đầu tiên, prefix chưa từng được ghi nên list() có thể báo lỗi thay vì trả mảng rỗng —
+      // xem đây là "chưa có hồ sơ nào" thay vì lỗi hệ thống thật sự.
+      console.warn('Store.list chưa có dữ liệu / không khả dụng:', e.message);
+      area.innerHTML = `<div class="empty">Chưa có hồ sơ nào được lưu. Nhập thông tin bên dưới để tạo hồ sơ đầu tiên.</div>`;
+    }
+  }
+  $('refreshListBtn').addEventListener('click', loadCaseList);
+  loadCaseList();
+
+  async function openCase(id){
+    try{
+      const r = await Store.get(STORE_PREFIX+id, false);
+      if(!r){ alert('Không tìm thấy hồ sơ '+id); return; }
+      const c = JSON.parse(r.value);
+      State.profile = c.profile;
+      State.caseId = c.profile.id;
+      State.history = c.assessments || [];
+      writeProfileForm(c.profile);
+      checkAllowWarn();
+      updateCaseChip();
+      $('deleteCaseBtn').style.display='inline-block';
+      $('saveMsg').innerHTML = `<div class="noteMint" style="margin-top:12px;">Đã mở hồ sơ ${id}.</div>`;
+    }catch(e){
+      console.error(e);
+      alert('Lỗi khi mở hồ sơ: '+e.message);
+    }
+  }
+
+  $('newCaseBtn').addEventListener('click', ()=>{
+    State.profile=null; State.caseId=null; State.history=[]; State.assessment=null;
+    writeProfileForm({});
+    $('f_date').value = todayISO();
+    $('deleteCaseBtn').style.display='none';
+    checkAllowWarn();
+    updateCaseChip();
+    $('saveMsg').innerHTML='';
+  });
+
+  $('saveCaseBtn').addEventListener('click', async ()=>{
+    const p = readProfileForm();
+    if(!p.id){ alert('Vui lòng nhập Mã BA trước khi lưu.'); return; }
+    if(!p.name){ if(!confirm('Chưa nhập họ tên, vẫn lưu hồ sơ?')) return; }
+
+    // Luôn cập nhật vào bộ nhớ phiên làm việc trước — đảm bảo tab Video mở khoá được
+    // ngay cả khi không có (hoặc lưu trữ bền vững thất bại).
+    State.profile = p; State.caseId = p.id;
+    $('deleteCaseBtn').style.display='inline-block';
+    updateCaseChip();
+
+    if(!hasStorage){
+      State.history = State.history && State.caseId===p.id ? State.history : [];
+      $('saveMsg').innerHTML = `<div class="noteYellow" style="margin-top:12px;">✓ Đã dùng hồ sơ ${p.id} cho phiên làm việc hiện tại (trình duyệt này chặn mọi cơ chế lưu trữ, dữ liệu sẽ mất khi đóng trang).</div>`;
+      return;
+    }
+    try{
+      let existing = null;
+      try{ const r = await Store.get(STORE_PREFIX+p.id, false); if(r) existing = JSON.parse(r.value); }catch(e){}
+      const record = { profile: p, assessments: existing ? existing.assessments : [], updatedAt: Date.now() };
+      const res = await Store.set(STORE_PREFIX+p.id, JSON.stringify(record), false);
+      if(!res){ throw new Error('Lưu thất bại'); }
+      State.history = record.assessments;
+      $('saveMsg').innerHTML = `<div class="noteMint" style="margin-top:12px;">✓ Đã lưu hồ sơ ${p.id}.</div>`;
+      loadCaseList();
+    }catch(e){
+      console.error(e);
+      $('saveMsg').innerHTML = `<div class="noteYellow" style="margin-top:12px;">Đã dùng hồ sơ ${p.id} cho phiên làm việc hiện tại, nhưng lưu trữ lâu dài thất bại: ${e.message}</div>`;
+    }
+  });
+
+  $('deleteCaseBtn').addEventListener('click', async ()=>{
+    if(!State.caseId) return;
+    if(!confirm('Xoá vĩnh viễn hồ sơ '+State.caseId+'? Không thể hoàn tác.')) return;
+    if(hasStorage){
+      try{ await Store.delete(STORE_PREFIX+State.caseId, false); }
+      catch(e){ console.warn('Xoá lưu trữ thất bại (có thể chưa từng lưu):', e.message); }
+    }
+    State.profile=null; State.caseId=null; State.history=[];
+    writeProfileForm({});
+    $('deleteCaseBtn').style.display='none';
+    updateCaseChip();
+    $('saveMsg').innerHTML = `<div class="noteMint" style="margin-top:12px;">Đã xoá hồ sơ.</div>`;
+    if(hasStorage) loadCaseList();
+  });
+
+  // ============ VIDEO TAB (gate + AI pipeline) ============
+  function renderVideoGate(){
+    const gate = $('videoGate');
+    const content = $('videoContent');
+    if(!State.profile || !State.profile.id){
+      gate.innerHTML = `<div class="panel gatewrap"><div class="gicon">👤</div><p>Cần lưu hồ sơ bệnh nhân (tab Hồ sơ) trước khi quay/phân tích video.</p><button class="btn-primary" onclick="document.querySelector('[data-tab=profile]').click()">→ Đến tab Hồ sơ</button></div>`;
+      content.style.display='none'; return;
+    }
+    if(State.profile.allow==='Không'){
+      gate.innerHTML = `<div class="panel gatewrap"><div class="gicon">🚫</div><p>Hồ sơ đang đánh dấu <b style="color:var(--ink)">KHÔNG cho phép test</b>. Cập nhật mục "Cho phép test" ở tab Hồ sơ để mở khoá.</p><button class="btn-primary" onclick="document.querySelector('[data-tab=profile]').click()">→ Đến tab Hồ sơ</button></div>`;
+      content.style.display='none'; return;
+    }
+    gate.innerHTML='';
+    content.style.display='block';
+  }
+
+  const els = {
+    dropZone: $('dropZone'), dropText: $('dropText'), fileInput: $('fileInput'),
+    heightInput: $('heightInput'), stageArea: $('stageArea'), video: $('video'),
+    overlay: $('overlay'), scanline: $('scanline'), analyzeBtn: $('analyzeBtn'),
+    resetVideoBtn: $('resetVideoBtn'), progWrap: $('progWrap'), progFill: $('progFill'),
+    progStatus: $('progStatus'), videoDoneNote: $('videoDoneNote'),
+    frontDropZone:$('frontDropZone'), frontDropText:$('frontDropText'), frontFileInput:$('frontFileInput'), frontStageArea:$('frontStageArea'), frontVideo:$('frontVideo'), frontOverlay:$('frontOverlay'), frontScanline:$('frontScanline'), frontAnalyzeBtn:$('frontAnalyzeBtn'), frontResetVideoBtn:$('frontResetVideoBtn'), frontProgWrap:$('frontProgWrap'), frontProgFill:$('frontProgFill'), frontProgStatus:$('frontProgStatus'), frontResult:$('frontResult'),
+  };
+
+  let detector = null;
+  let videoURL = null;
+  let frontVideoURL = null;
+  let charts = {knee:null, hip:null};
+
+  els.dropZone.addEventListener('dragover', e=>{e.preventDefault(); els.dropZone.classList.add('drag');});
+  els.dropZone.addEventListener('dragleave', ()=> els.dropZone.classList.remove('drag'));
+  els.dropZone.addEventListener('drop', e=>{
+    e.preventDefault(); els.dropZone.classList.remove('drag');
+    if(e.dataTransfer.files && e.dataTransfer.files[0]) loadFile(e.dataTransfer.files[0]);
+  });
+  els.fileInput.addEventListener('change', e=>{ if(e.target.files && e.target.files[0]) loadFile(e.target.files[0]); });
+
+  function loadFile(file){
+    if(videoURL) URL.revokeObjectURL(videoURL);
+    videoURL = URL.createObjectURL(file);
+    els.video.src = videoURL;
+    els.stageArea.style.display='block';
+    els.dropText.textContent = file.name;
+    els.analyzeBtn.disabled = false;
+    els.videoDoneNote.style.display='none';
+  }
+  els.resetVideoBtn.addEventListener('click', ()=>{
+    els.stageArea.style.display='none'; els.fileInput.value='';
+    els.dropText.textContent='Chạm để chọn video, hoặc kéo-thả vào đây';
+    els.analyzeBtn.disabled=true; els.resetVideoBtn.style.display='none';
+    els.videoDoneNote.style.display='none';
+  });
+
+  els.frontFileInput.addEventListener('change', e=>{ if(e.target.files && e.target.files[0]) loadFrontFile(e.target.files[0]); });
+  els.frontDropZone.addEventListener('dragover', e=>{e.preventDefault(); els.frontDropZone.classList.add('drag');});
+  els.frontDropZone.addEventListener('dragleave', ()=>els.frontDropZone.classList.remove('drag'));
+  els.frontDropZone.addEventListener('drop', e=>{e.preventDefault(); els.frontDropZone.classList.remove('drag'); if(e.dataTransfer.files&&e.dataTransfer.files[0]) loadFrontFile(e.dataTransfer.files[0]);});
+  function loadFrontFile(file){
+    if(frontVideoURL) URL.revokeObjectURL(frontVideoURL);
+    frontVideoURL=URL.createObjectURL(file); els.frontVideo.src=frontVideoURL; els.frontStageArea.style.display='block';
+    els.frontDropText.textContent=file.name; els.frontAnalyzeBtn.disabled=false; els.frontResult.style.display='none';
+  }
+  els.frontResetVideoBtn.addEventListener('click',()=>{els.frontStageArea.style.display='none'; els.frontFileInput.value=''; els.frontDropText.textContent='Chạm để chọn video chính diện'; els.frontAnalyzeBtn.disabled=true; els.frontResetVideoBtn.style.display='none'; els.frontResult.style.display='none';});
+  function setFrontProgress(pct,text){els.frontProgWrap.style.display='block'; els.frontProgFill.style.width=pct+'%'; els.frontProgStatus.textContent=text;}
+  els.frontAnalyzeBtn.addEventListener('click', runFrontalAnalysis);
+  async function runFrontalAnalysis(){
+    try{
+      els.frontAnalyzeBtn.disabled=true; els.frontScanline.classList.add('active'); await ensureDetector();
+      const video=els.frontVideo; await new Promise(res=>{if(video.readyState>=2)return res(); video.onloadeddata=()=>res();});
+      const overlay=els.frontOverlay; overlay.width=video.videoWidth; overlay.height=video.videoHeight; const ctx=overlay.getContext('2d');
+      const duration=video.duration, targetFps=15, sampleCount=Math.min(220,Math.max(30,Math.round(duration*targetFps))), step=duration/sampleCount, frames=[];
+      for(let i=0;i<sampleCount;i++){
+        const t=Math.min(duration-0.001,i*step); await seekTo(video,t); ctx.drawImage(video,0,0,overlay.width,overlay.height);
+        const poses=await detector.estimatePoses(overlay,{flipHorizontal:false}); const kp={}; if(poses[0]&&poses[0].keypoints) poses[0].keypoints.forEach(p=>{kp[p.name]=p;});
+        frames.push({t,kp}); drawSkeleton(ctx,overlay,kp); if(i%3===0){setFrontProgress(5+(i/sampleCount)*88,`Đang phân tích chính diện ${i+1}/${sampleCount}…`); await new Promise(r=>setTimeout(r,0));}
+      }
+      const valid=frames.filter(f=>get(f.kp,'left_hip',0.3)&&get(f.kp,'right_hip',0.3)&&get(f.kp,'left_shoulder',0.3)&&get(f.kp,'right_shoulder',0.3));
+      if(valid.length/frames.length<0.25) throw new Error('Không đủ mốc chậu–vai rõ ở video chính diện.');
+      const pelvic=[], trunk=[];
+      valid.forEach(f=>{
+        const lh=get(f.kp,'left_hip',0.3), rh=get(f.kp,'right_hip',0.3), ls=get(f.kp,'left_shoulder',0.3), rs=get(f.kp,'right_shoulder',0.3);
+        pelvic.push(Math.atan2(rh.y-lh.y,Math.abs(rh.x-lh.x))*180/Math.PI);
+        const sx=(ls.x+rs.x)/2, sy=(ls.y+rs.y)/2, hx=(lh.x+rh.x)/2, hy=(lh.y+rh.y)/2;
+        trunk.push(Math.atan2(sx-hx,hy-sy)*180/Math.PI);
+      });
+      const absmax=a=>a.length?Math.max(...a.map(Math.abs)):null, mean=a=>a.length?a.reduce((x,y)=>x+y,0)/a.length:null;
+      State.frontalAssessment={frames, pelvicObliquityMax:absmax(pelvic), pelvicObliquityMean:mean(pelvic), trunkLeanMax:absmax(trunk), trunkLeanMean:mean(trunk), validRatio:valid.length/frames.length};
+      els.frontResult.style.display='block'; els.frontResult.innerHTML=`✓ <b>Đã phân tích chính diện độc lập.</b><br>Nghiêng chậu cực đại: <b>${fmt(State.frontalAssessment.pelvicObliquityMax,1)}°</b> · Nghiêng thân cực đại: <b>${fmt(State.frontalAssessment.trunkLeanMax,1)}°</b> · Khung đạt: <b>${Math.round(State.frontalAssessment.validRatio*100)}%</b>.`;
+      setFrontProgress(100,'Hoàn tất phân tích chính diện.'); els.frontResetVideoBtn.style.display='inline-flex'; setTimeout(()=>{els.frontProgWrap.style.display='none';},900);
+      if(document.querySelector('#tab-report.active')) renderReportTab();
+    }catch(err){console.error(err); alert('Có lỗi khi phân tích video chính diện: '+err.message);}
+    finally{els.frontScanline.classList.remove('active'); els.frontAnalyzeBtn.disabled=false;}
+  }
+
+  async function ensureDetector(){
+    if(detector) return detector;
+    setProgress(2, 'Đang tải mô hình AI (BlazePose)…');
+    await tf.setBackend('webgl'); await tf.ready();
+    detector = await poseDetection.createDetector(poseDetection.SupportedModels.BlazePose, {runtime:'tfjs', modelType:'full', enableSmoothing:true});
+    return detector;
+  }
+  function setProgress(pct, text){ els.progWrap.style.display='block'; els.progFill.style.width=pct+'%'; els.progStatus.textContent=text; }
+
+  const CONNECTIONS = [
+    ['left_shoulder','right_shoulder'],['left_shoulder','left_hip'],['right_shoulder','right_hip'],['left_hip','right_hip'],
+    ['left_shoulder','left_elbow'],['left_elbow','left_wrist'],['right_shoulder','right_elbow'],['right_elbow','right_wrist'],
+    ['left_hip','left_knee'],['left_knee','left_ankle'],['left_ankle','left_heel'],['left_ankle','left_foot_index'],['left_heel','left_foot_index'],
+    ['right_hip','right_knee'],['right_knee','right_ankle'],['right_ankle','right_heel'],['right_ankle','right_foot_index'],['right_heel','right_foot_index'],
+  ];
+
+  els.analyzeBtn.addEventListener('click', runAnalysis);
+
+  function readVideoQC(){
+    return {frontOrientation:$('qc_front_orientation').value,sideOrientation:$('qc_side_orientation').value,
+      bystanders:parseInt($('qc_bystanders').value||'0',10)||0,fullBody:$('qc_fullbody').value};
+  }
+  function validateVideoQC(){
+    const q=readVideoQC(),miss=[],warnings=[];
+    if(q.frontOrientation!=='portrait')miss.push('chính diện phải quay dọc');
+    if(q.sideOrientation!=='landscape')miss.push('quay bên phải quay ngang');
+    if(q.fullBody!=='yes')miss.push('phải thấy toàn thân');
+    if(q.bystanders>0)warnings.push('có người khác trong khung');
+    $('qcStatus').innerHTML=miss.length?`<div class="noteRed"><b>QC FAIL:</b> ${miss.join('; ')}</div>`:
+      `<div class="${warnings.length?'noteYellow':'noteMint'}"><b>${warnings.length?'QC CẢNH BÁO':'QC PASS'}:</b> ${warnings.length?warnings.join('; '):'khung hình đạt yêu cầu.'}</div>`;
+    return {ok:!miss.length,data:q,warnings};
+  }
+  function poseSig(kp){
+    const names=['left_shoulder','right_shoulder','left_hip','right_hip','left_knee','right_knee','left_ankle','right_ankle'];
+    const p=names.map(n=>kp[n]).filter(x=>x&&x.score>0.3);
+    if(p.length<4)return null;
+    const xs=p.map(x=>x.x),ys=p.map(x=>x.y);
+    return {cx:xs.reduce((a,b)=>a+b,0)/xs.length,cy:ys.reduce((a,b)=>a+b,0)/ys.length,
+      w:Math.max(...xs)-Math.min(...xs),h:Math.max(...ys)-Math.min(...ys)};
+  }
+  function sameSubject(prev,cur){
+    if(!prev||!cur)return false;
+    const sc=Math.max(prev.h,prev.w,20);
+    const d=Math.hypot(cur.cx-prev.cx,cur.cy-prev.cy)/sc;
+    const rh=cur.h/Math.max(prev.h,1),rw=cur.w/Math.max(prev.w,1);
+    return d<0.85&&rh>0.5&&rh<1.9&&rw>0.4&&rw<2.4;
+  }
+
+  function readMeasurementCondition(){
+    return {affectedSide:$('mc_side').value,speedCondition:$('mc_speed').value,afo:$('mc_afo').value,
+      device:$('mc_device').value,assist:$('mc_assist').value,footwear:$('mc_footwear').value,
+      surface:$('mc_surface').value.trim(),requestedCycles:parseInt($('mc_cycles').value||'0',10)||null,note:$('mc_note').value.trim()};
+  }
+  function validateMeasurementCondition(){
+    const m=readMeasurementCondition(), missing=[];
+    if(!m.affectedSide)missing.push('bên ảnh hưởng'); if(!m.speedCondition)missing.push('tốc độ yêu cầu');
+    if(!m.afo)missing.push('AFO'); if(!m.device)missing.push('dụng cụ trợ giúp'); if(!m.assist)missing.push('mức trợ giúp');
+    if(!m.footwear)missing.push('giày dép'); if(!m.surface)missing.push('bề mặt đi');
+    $('mcWarn').innerHTML=missing.length?`<div class="noteYellow" style="margin-top:10px"><b>Chưa đủ metadata nghiên cứu:</b> ${missing.join(', ')}.</div>`:'<div class="noteMint" style="margin-top:10px">✓ Điều kiện đo đã đủ trường bắt buộc.</div>';
+    return {ok:!missing.length,data:m,missing};
+  }
+
+  async function runAnalysis(){
+    const qcCheck=validateVideoQC();
+    if(!qcCheck.ok){alert('QC video chưa đạt. Hoàn thiện điều kiện quay trước khi phân tích.');return;}
+    const mcCheck=validateMeasurementCondition();
+    if(!mcCheck.ok){alert('Chưa đủ điều kiện đo bắt buộc: '+mcCheck.missing.join(', ')+'.');return;}
+    try{
+      els.analyzeBtn.disabled=true; els.resetVideoBtn.style.display='none'; els.videoDoneNote.style.display='none';
+      els.scanline.classList.add('active');
+      await ensureDetector();
+      const video = els.video;
+      await new Promise((res)=>{ if(video.readyState>=2) return res(); video.onloadeddata=()=>res(); });
+      const overlay = els.overlay;
+      overlay.width = video.videoWidth; overlay.height = video.videoHeight;
+      const ctx = overlay.getContext('2d');
+      const duration = video.duration;
+      const targetFps = 15;
+      const sampleCount = Math.min(220, Math.max(30, Math.round(duration*targetFps)));
+      const step = duration/sampleCount;
+      const frames = []; let subjectSig=null, rejectedFrames=0, detectedFrames=0;
+      for(let i=0;i<sampleCount;i++){
+        const t = Math.min(duration-0.001, i*step);
+        await seekTo(video, t);
+        ctx.drawImage(video,0,0,overlay.width,overlay.height);
+        const poses = await detector.estimatePoses(overlay, {flipHorizontal:false});
+        const kp = {};
+        if(poses[0] && poses[0].keypoints) poses[0].keypoints.forEach(p=>{ kp[p.name]=p; });
+        detectedFrames++;
+        const sig=poseSig(kp);
+        if(subjectSig && !sameSubject(subjectSig,sig)){ rejectedFrames++; if(i%3===0) setProgress(2+(i/sampleCount)*88, `Subject Lock: loại frame nghi chuyển đối tượng ${i+1}/${sampleCount}…`); continue; }
+        if(sig) subjectSig=sig;
+        frames.push({t,kp});
+        drawSkeleton(ctx, overlay, kp);
+        if(i%3===0){ setProgress(2+(i/sampleCount)*88, `Đang phân tích khung hình ${i+1}/${sampleCount}…`); await new Promise(r=>setTimeout(r,0)); }
+      }
+      els.scanline.classList.remove('active');
+      setProgress(92,'Đang tính toán góc khớp và chu kỳ dáng đi…'); await new Promise(r=>setTimeout(r,30));
+
+      const validRatio = frames.filter(f=>f.kp.left_hip && f.kp.left_hip.score>0.3).length/frames.length;
+      if(validRatio<0.25){
+        setProgress(100,'Không đủ dữ liệu.');
+        alert('AI không nhận diện được người rõ trong phần lớn video. Hãy thử video quay rõ toàn thân hơn, đủ sáng, ít bị che khuất.');
+        els.analyzeBtn.disabled=false; return;
+      }
+
+      const heightCm = parseFloat(els.heightInput.value) || null;
+      const series = extractSeries(frames);
+      const eventsAuto = { left: detectHeelStrikes(series.left.t, series.left.heelY), right: detectHeelStrikes(series.right.t, series.right.heelY) };
+      const events = { left: eventsAuto.left.slice(), right: eventsAuto.right.slice() };
+
+      State.assessment = {
+        heightCm, frames, series, events,
+        eventsRaw:{left:eventsAuto.left.slice(),right:eventsAuto.right.slice()},
+        eventsAssisted:{left:events.left.slice(),right:events.right.slice()},
+        manualCorrectionStatus:'AI_RAW',temporalMetricsStatus:'PRELIMINARY_AI_RAW',
+        measurementCondition:mcCheck.data,
+        videoQC:qcCheck.data,qcWarnings:qcCheck.warnings.slice(),
+        trackingQC:{detectedFrames,rejectedFrames,rejectedRate:detectedFrames?rejectedFrames/detectedFrames:0},
+        qcState:'PASS',
+        versions:{schema:'3.4.3',measurementEngine:'2D-markerless-v3.4.3',reasoningRules:'multidomain-rulebased-v3.4.3',poseModel:'BlazePose TFJS full'},
+        analysis:null,flags:[],muscleRows:[],checklist:{},clinical:{},clinicalSavedAt:null,conclusion:''
+      };
+      if(State.assessment.trackingQC.rejectedRate>0.10){
+        State.assessment.qcState='FAIL_SUBJECT_LOCK'; State.assessment.temporalMetricsStatus='INVALID_QC_FAIL';
+        State.assessment.qcWarnings.push('Subject Lock loại >10% frame; không dùng temporal metrics cho nghiên cứu trước khi KTV kiểm tra.');
+      }else if(State.assessment.qcWarnings.length){State.assessment.qcState='WARNING';}
+      recomputeAnalysis();
+      // Đóng băng đầu ra AI trước mọi thao tác hiệu chỉnh sự kiện của KTV.
+      State.assessment.aiIndependentSnapshot={version:'V3.5.0 · thuật toán nền V3.4.3',createdAt:new Date().toISOString(),flags:JSON.parse(JSON.stringify(State.assessment.flags||[])),analysis:JSON.parse(JSON.stringify(State.assessment.analysis||{})),eventsRaw:JSON.parse(JSON.stringify(State.assessment.eventsRaw||{})),eventSource:'AI_RAW'};
+
+      setProgress(100,'Hoàn tất.');
+      els.videoDoneNote.style.display='block';
+      setTimeout(()=>{ els.progWrap.style.display='none'; }, 800);
+    }catch(err){
+      console.error(err);
+      els.scanline.classList.remove('active');
+      alert('Có lỗi khi phân tích video: '+err.message+'\\n\\nNếu lỗi liên quan tải mô hình AI, hãy kiểm tra kết nối mạng và thử lại.');
+    }finally{ els.analyzeBtn.disabled=false; }
+  }
+
+  function seekTo(video,t){
+    return new Promise((resolve)=>{
+      const onSeeked=()=>{ video.removeEventListener('seeked', onSeeked); resolve(); };
+      video.addEventListener('seeked', onSeeked);
+      video.currentTime=t;
+      setTimeout(()=>{ video.removeEventListener('seeked', onSeeked); resolve(); }, 400);
+    });
+  }
+  function drawSkeleton(ctx, overlay, kp){
+    ctx.lineWidth = Math.max(2, overlay.width/220);
+    ctx.strokeStyle='rgba(79,209,197,0.85)';
+    CONNECTIONS.forEach(([a,b])=>{
+      const pa=kp[a], pb=kp[b];
+      if(pa && pb && pa.score>0.3 && pb.score>0.3){ ctx.beginPath(); ctx.moveTo(pa.x,pa.y); ctx.lineTo(pb.x,pb.y); ctx.stroke(); }
+    });
+    ctx.fillStyle='#4FD1C5';
+    Object.values(kp).forEach(p=>{ if(p.score>0.3){ ctx.beginPath(); ctx.arc(p.x,p.y, Math.max(2.5,overlay.width/260), 0, 7); ctx.fill(); } });
+  }
+
+  // ============ GEOMETRY / SERIES ============
+  function angleAt(A,B,C){
+    const v1={x:A.x-B.x,y:A.y-B.y}, v2={x:C.x-B.x,y:C.y-B.y};
+    const dot=v1.x*v2.x+v1.y*v2.y, m1=Math.hypot(v1.x,v1.y), m2=Math.hypot(v2.x,v2.y);
+    if(m1===0||m2===0) return null;
+    let cos=dot/(m1*m2); cos=Math.max(-1,Math.min(1,cos));
+    return Math.acos(cos)*180/Math.PI;
+  }
+  function get(kp,name,minScore){ const p=kp[name]; if(!p||p.score<(minScore||0.3)) return null; return p; }
+
+  function extractSeries(frames){
+    const sides=['left','right'];
+    const series={left:{hip:[],knee:[],ankle:[],heelY:[],footY:[],t:[]}, right:{hip:[],knee:[],ankle:[],heelY:[],footY:[],t:[]}};
+    frames.forEach(f=>{
+      sides.forEach(side=>{
+        const sh=get(f.kp,side+'_shoulder'), hip=get(f.kp,side+'_hip'), knee=get(f.kp,side+'_knee'),
+              ank=get(f.kp,side+'_ankle'), heel=get(f.kp,side+'_heel'), foot=get(f.kp,side+'_foot_index');
+        let hipFlex=null, kneeFlex=null, ankAng=null;
+        if(sh&&hip&&knee){ const a=angleAt(sh,hip,knee); if(a!==null) hipFlex=180-a; }
+        if(hip&&knee&&ank){ const a=angleAt(hip,knee,ank); if(a!==null) kneeFlex=180-a; }
+        if(knee&&ank&&foot){ const a=angleAt(knee,ank,foot); if(a!==null) ankAng=a; }
+        series[side].hip.push(hipFlex); series[side].knee.push(kneeFlex); series[side].ankle.push(ankAng);
+        series[side].heelY.push(heel?heel.y:null); series[side].footY.push(foot?foot.y:(ank?ank.y:null));
+        series[side].t.push(f.t);
+      });
+    });
+    return series;
+  }
+
+  function detectHeelStrikes(tArr,yArr){
+    const valid=yArr.map((v,i)=>({v,t:tArr[i],i})).filter(d=>d.v!==null);
+    if(valid.length<8) return [];
+    const win=2;
+    const sm=valid.map((d,idx)=>{ let sum=0,cnt=0; for(let k=-win;k<=win;k++){ const j=idx+k; if(j>=0&&j<valid.length){sum+=valid[j].v;cnt++;} } return {v:sum/cnt,t:d.t}; });
+    const vals=sm.map(d=>d.v);
+    const range=Math.max(...vals)-Math.min(...vals);
+    if(range<1) return [];
+    const minDist=0.25; const peaks=[];
+    for(let i=2;i<sm.length-2;i++){
+      if(sm[i].v>=sm[i-1].v && sm[i].v>=sm[i-2].v && sm[i].v>=sm[i+1].v && sm[i].v>=sm[i+2].v){
+        if(sm[i].v > Math.min(...vals)+range*0.55){
+          if(peaks.length===0 || sm[i].t-peaks[peaks.length-1] > minDist) peaks.push(sm[i].t);
+        }
+      }
+    }
+    return peaks;
+  }
+
+  function nearestFrame(frames,t){ let best=frames[0], bd=Infinity; frames.forEach(f=>{ const d=Math.abs(f.t-t); if(d<bd){bd=d;best=f;} }); return best; }
+
+  function buildAverageCurve(tArr,valArr,strikes){
+    if(strikes.length<2) return null;
+    const N=101; const cycles=[];
+    const sorted = strikes.slice().sort((a,b)=>a-b);
+    for(let c=0;c<sorted.length-1;c++){
+      const t0=sorted[c], t1=sorted[c+1];
+      if(t1-t0<0.15) continue;
+      const curve=new Array(N).fill(null);
+      for(let p=0;p<N;p++){
+        const tt=t0+(t1-t0)*(p/100);
+        let lo=-1,hi=-1;
+        for(let i=0;i<tArr.length-1;i++){ if(tArr[i]<=tt && tArr[i+1]>=tt){ lo=i; hi=i+1; break; } }
+        if(lo>=0 && valArr[lo]!==null && valArr[hi]!==null){
+          const frac=(tt-tArr[lo])/((tArr[hi]-tArr[lo])||1);
+          curve[p]=valArr[lo]+(valArr[hi]-valArr[lo])*frac;
+        }
+      }
+      if(curve.filter(v=>v!==null).length > N*0.6) cycles.push(curve);
+    }
+    if(cycles.length===0) return null;
+    const avg=new Array(N).fill(null);
+    for(let p=0;p<N;p++){ const vs=cycles.map(c=>c[p]).filter(v=>v!==null); if(vs.length) avg[p]=vs.reduce((a,b)=>a+b,0)/vs.length; }
+    return avg;
+  }
+
+  // ============ CORE METRICS (recomputable from edited events) ============
+  function computeMetrics(series, events, heightCm, frames){
+    const sides=['left','right'];
+    const duration = series.left.t[series.left.t.length-1] - series.left.t[0];
+
+    const allStrikes=[...events.left.map(t=>({t,side:'left'})), ...events.right.map(t=>({t,side:'right'}))].sort((a,b)=>a.t-b.t);
+    const cadence = duration>0 ? (allStrikes.length/(duration/60)) : null;
+
+    function strideStats(strikes){
+      const s = strikes.slice().sort((a,b)=>a-b);
+      const intervals=[]; for(let i=1;i<s.length;i++) intervals.push(s[i]-s[i-1]);
+      if(intervals.length===0) return {mean:null,cv:null};
+      const mean=intervals.reduce((a,b)=>a+b,0)/intervals.length;
+      const sd=Math.sqrt(intervals.reduce((a,b)=>a+(b-mean)*(b-mean),0)/intervals.length);
+      return {mean, cv: mean?(sd/mean*100):null, n:intervals.length};
+    }
+    const strideL=strideStats(events.left), strideR=strideStats(events.right);
+    let symmetryIndex=null;
+    if(strideL.mean && strideR.mean) symmetryIndex = Math.abs(strideL.mean-strideR.mean)/((strideL.mean+strideR.mean)/2)*100;
+
+    function stancePercent(heelY,tArr){
+      const valid=heelY.map((v,i)=>({v,t:tArr[i]})).filter(d=>d.v!==null);
+      if(valid.length<5) return null;
+      const vals=valid.map(d=>d.v); const min=Math.min(...vals), max=Math.max(...vals);
+      if(max-min<1) return null;
+      const thresh=min+(max-min)*0.5; let stanceCount=0;
+      valid.forEach(d=>{ if(d.v>thresh) stanceCount++; });
+      return stanceCount/valid.length*100;
+    }
+    const stanceL=stancePercent(series.left.heelY, series.left.t);
+    const stanceR=stancePercent(series.right.heelY, series.right.t);
+
+    function romOf(arr){ const v=arr.filter(x=>x!==null); if(v.length<3) return null; return {min:Math.min(...v), max:Math.max(...v), range:Math.max(...v)-Math.min(...v)}; }
+    const romKneeL=romOf(series.left.knee), romKneeR=romOf(series.right.knee);
+    const romHipL=romOf(series.left.hip), romHipR=romOf(series.right.hip);
+
+    const curveKneeL=buildAverageCurve(series.left.t, series.left.knee, events.left);
+    const curveKneeR=buildAverageCurve(series.right.t, series.right.knee, events.right);
+    const curveHipL=buildAverageCurve(series.left.t, series.left.hip, events.left);
+    const curveHipR=buildAverageCurve(series.right.t, series.right.hip, events.right);
+
+    let stepLenCm=null, speedMs=null;
+    if(heightCm && frames){
+      let maxSpan=0;
+      frames.forEach(f=>{
+        const nose=get(f.kp,'nose',0.3), la=get(f.kp,'left_ankle',0.3), ra=get(f.kp,'right_ankle',0.3);
+        const ankY=Math.max(la?la.y:0, ra?ra.y:0);
+        if(nose && ankY){ const span=ankY-nose.y; if(span>maxSpan) maxSpan=span; }
+      });
+      if(maxSpan>0){
+        const pxPerCm=(maxSpan*1.15)/heightCm;
+        const dispVals=[];
+        allStrikes.forEach((s,i)=>{
+          if(i===0) return; const prev=allStrikes[i-1];
+          const fL=nearestFrame(frames, s.t), fP=nearestFrame(frames, prev.t);
+          const p1=get(fL.kp, s.side+'_ankle',0.3), p0=get(fP.kp, prev.side+'_ankle',0.3);
+          if(p1&&p0) dispVals.push(Math.abs(p1.x-p0.x));
+        });
+        if(dispVals.length){
+          const meanDispPx=dispVals.reduce((a,b)=>a+b,0)/dispVals.length;
+          stepLenCm=meanDispPx/pxPerCm;
+          if(cadence) speedMs=(stepLenCm/100)*(cadence/60);
+        }
+      }
+    }
+
+    return {
+      duration, cadence, symmetryIndex, strideL, strideR, stanceL, stanceR,
+      romKneeL, romKneeR, romHipL, romHipR,
+      curveKneeL, curveKneeR, curveHipL, curveHipR,
+      stepLenCm, speedMs, strikesL: events.left.length, strikesR: events.right.length,
+    };
+  }
+
+  function recomputeAnalysis(){
+    if(!State.assessment) return;
+    const a = State.assessment;
+    a.analysis = computeMetrics(a.series, a.events, a.heightCm, a.frames);
+    a.flags = buildFlags(a.analysis);
+    const rows=[];
+    a.flags.forEach(f=>{
+      (f.hypotheses||[]).forEach(h=>rows.push({m:h.label,type:h.type||'check',from:f.title}));
+    });
+    a.muscleRows = rows;
+    // preserve existing checked state for checklist items still present
+    const newChecklist = {};
+    buildChecklistItems(a.flags).forEach(item=>{ newChecklist[item.key] = a.checklist[item.key] || false; });
+    a.checklist = newChecklist;
+  }
+
+  // ============ FLAGS / MUSCLE MAPPING ============
+  function clinicalContext(){
+    const p=State.profile||{};
+    return {diag:p.diag||'', neurotype:p.neurotype||''};
+  }
+  function phenotypeHypotheses(ctx){
+    const n=ctx.neurotype||'', d=ctx.diag||'';
+    if(n.includes('Tiểu não')) return [
+      {label:'Điều hợp vận động đa khớp / thất điều',type:'coord'},
+      {label:'Kiểm soát thân mình và độ ổn định tư thế',type:'balance'},
+      {label:'Biến thiên bước giữa các chu kỳ',type:'variability'},
+      {label:'Cảm giác bản thể và mức phụ thuộc thị giác',type:'sensory'},
+      {label:'Thăng bằng động khi đi',type:'balance'}
+    ];
+    if(n.includes('Đồi thị')||n.includes('cảm giác')) return [
+      {label:'Cảm giác bản thể chi dưới',type:'sensory'},
+      {label:'Phụ thuộc thị giác khi kiểm soát bước',type:'sensory'},
+      {label:'Thăng bằng và định hướng chi trong không gian',type:'balance'}
+    ];
+    if(n.includes('Tiền đình')) return [
+      {label:'Ổn định tư thế và định hướng không gian',type:'balance'},
+      {label:'Lệch hướng / dao động thân khi đi',type:'balance'},
+      {label:'Tương tác thị giác – tiền đình – cảm giác bản thể',type:'sensory'}
+    ];
+    if(d.includes('Tổn thương tủy')||n.includes('Tổn thương tủy')) return [
+      {label:'Sức cơ theo mức tổn thương và hai bên',type:'strength'},
+      {label:'Cảm giác nông và cảm giác bản thể',type:'sensory'},
+      {label:'Kiểm soát thân mình / chiến lược bù trừ',type:'balance'},
+      {label:'Trương lực chỉ khi khám trực tiếp gợi ý',type:'tonecheck'}
+    ];
+    if(d.includes('Hậu ICU')||n.includes('hồi sức')) return [
+      {label:'Sức mạnh chi dưới và yếu mắc phải tại hồi sức',type:'strength'},
+      {label:'Sức bền / mất điều kiện thể lực',type:'endurance'},
+      {label:'Thăng bằng và năng lực chức năng',type:'balance'}
+    ];
+    if(d.includes('Chấn thương sọ não')) return [
+      {label:'Kiểm soát vận động và điều hợp',type:'coord'},
+      {label:'Thăng bằng / kiểm soát thân mình',type:'balance'},
+      {label:'Sức cơ và trương lực: chỉ xác nhận bằng khám trực tiếp',type:'check'}
+    ];
+    return [
+      {label:'Kiểm soát vận động chọn lọc',type:'coord'},
+      {label:'Sức cơ liên quan: cần đo trực tiếp',type:'strength'},
+      {label:'Tầm vận động và độ mềm mô',type:'rom'},
+      {label:'Trương lực: chỉ kiểm tra khi bệnh cảnh/khám gợi ý',type:'tonecheck'},
+      {label:'Cảm giác bản thể và thăng bằng',type:'sensory'}
+    ];
+  }
+  function buildFlags(a){
+    const flags=[], ctx=clinicalContext(), contextHyps=phenotypeHypotheses(ctx);
+    const contextText = ctx.neurotype ? `Bệnh cảnh đang chọn: ${ctx.diag||'—'} → ${ctx.neurotype}.` : `Bệnh cảnh đang chọn: ${ctx.diag||'chưa xác định'}.`;
+    if((a.romKneeL && a.romKneeL.max<45) || (a.romKneeR && a.romKneeR.max<45)){
+      const sides=[]; if(a.romKneeL && a.romKneeL.max<45) sides.push('trái'); if(a.romKneeR && a.romKneeR.max<45) sides.push('phải');
+      flags.push({sev:'high',tag:'GỐI',key:'kneeSwing',title:`Giảm gấp gối pha vung (chân ${sides.join(', ')})`,
+        desc:`AI ghi nhận đỉnh gấp gối thấp. ${contextText} Đây là dấu hiệu động học, chưa xác định nguyên nhân.`,
+        hypotheses:[...contextHyps,{label:'Tầm vận động gối/háng/cổ chân',type:'rom'},{label:'Sức cơ gấp gối/gấp háng: cần đo trực tiếp',type:'strength'}],
+        diffTest:['Đánh giá điều hợp và kiểm soát vận động chọn lọc','Đo sức cơ gấp gối/gấp háng','Đo tầm vận động thụ động','Đánh giá cảm giác bản thể','Đánh giá trương lực chỉ khi khám gợi ý']});
+    }
+    if((a.romKneeL && a.romKneeL.min>25) || (a.romKneeR && a.romKneeR.min>25)){
+      flags.push({sev:'high',tag:'GỐI',key:'crouch',title:'Gối duy trì gấp nhiều trong thì tựa',
+        desc:`AI ghi nhận tư thế gối gấp trong thì tựa. ${contextText} Không suy nguyên nhân cơ học hoặc trương lực chỉ từ video.`,
+        hypotheses:[...contextHyps,{label:'Tầm vận động duỗi gối/háng',type:'rom'},{label:'Sức cơ duỗi gối và kiểm soát chịu tải',type:'strength'}],
+        diffTest:['Đo tầm vận động duỗi gối/háng','Đo sức cơ duỗi gối','Quan sát kiểm soát chịu tải','Đánh giá trương lực nếu có dấu hiệu lâm sàng']});
+    }
+    if((a.romHipL && a.romHipL.max<20) || (a.romHipR && a.romHipR.max<20)){
+      const sides=[]; if(a.romHipL && a.romHipL.max<20) sides.push('trái'); if(a.romHipR && a.romHipR.max<20) sides.push('phải');
+      flags.push({sev:'high',tag:'HÁNG',key:'hipSwing',title:`Giảm biên độ gấp háng pha vung (chân ${sides.join(', ')})`,
+        desc:`AI ghi nhận biên độ gấp háng thấp. ${contextText} Cần phân biệt điều hợp, chiến lược bù trừ, tầm vận động, sức cơ và ảnh hưởng tốc độ.`,
+        hypotheses:[...contextHyps,{label:'Tầm vận động khớp háng',type:'rom'},{label:'Sức cơ gấp háng: cần đo trực tiếp',type:'strength'}],
+        diffTest:['Đánh giá điều hợp đa khớp','Đo tầm vận động háng','Đo sức cơ gấp háng','Quan sát thân mình/chậu và chiến lược bù trừ']});
+    }
+    if(a.symmetryIndex!==null && a.symmetryIndex>10){
+      flags.push({sev:'high',tag:'ĐỐI XỨNG',key:'asym',title:`Dáng đi bất đối xứng (chênh lệch ${a.symmetryIndex.toFixed(0)}% giữa hai chân)`,
+        desc:`AI ghi nhận bất đối xứng thời gian chu kỳ. ${contextText} Đây là dấu hiệu thời gian, chưa xác định cơ chế. Cần xác nhận IC/TO và đối chiếu các miền lâm sàng có liên quan trước khi diễn giải.`,
+        hypotheses:[...contextHyps,{label:'Đau / sợ ngã / chiến lược thận trọng',type:'other'}],
+        diffTest:['Đánh giá biến thiên giữa nhiều chu kỳ','Đánh giá điều hợp chi dưới','Kiểm soát thân mình và thăng bằng động','Cảm giác bản thể','Đau và mức tự tin khi đi']});
+    }
+    if(a.cadence && a.cadence<85){
+      flags.push({sev:'info',tag:'NHỊP BƯỚC',key:'cadence',title:'Tần số bước thấp — AI sơ bộ',
+        desc:`Tần số bước ước tính ${a.cadence.toFixed(0)} bước/phút. Chỉ diễn giải sau khi xác nhận sự kiện tiếp xúc ban đầu/nhấc bàn chân.`,
+        hypotheses:[...contextHyps,{label:'Sức bền và năng lực gắng sức',type:'endurance'}],diffTest:['Xác nhận thủ công sự kiện bước','TUG/10MWT','Đánh giá thăng bằng','Đánh giá sức bền nếu phù hợp']});
+    }
+    if(a.speedMs!==null && a.speedMs<0.8){
+      flags.push({sev:'info',tag:'TỐC ĐỘ',key:'speed',title:'Tốc độ video ước tính thấp',
+        desc:`Tốc độ từ video ước tính ${a.speedMs.toFixed(2)} m/s; không dùng thay thế 10MWT hoặc đo quãng đường–thời gian chuẩn hóa.`,
+        hypotheses:[...contextHyps,{label:'Năng lực gắng sức / sức bền',type:'endurance'}],diffTest:['10MWT hoặc đo quãng đường–thời gian chuẩn hóa','TUG','Đánh giá sức bền phù hợp']});
+    }
+    return flags;
+  }
+
+  function buildChecklistItems(flags){
+    const base = [
+      {key:'base_pain', label:'Đánh giá đau / sợ ngã / mức tự tin khi đi (Pain / fear / confidence)'},
+      {key:'base_afo', label:'Hiệu quả dụng cụ trợ giúp / giày dép / AFO hiện tại'},
+      {key:'base_sts', label:'5x Sit-to-Stand (đánh giá năng lực chức năng)'},
+    ];
+    const map = {};
+    base.forEach(b=> map[b.key]=b);
+    flags.forEach(f=>{
+      (f.diffTest||[]).forEach((t,i)=>{
+        const key = 'f_'+f.key+'_'+i;
+        map[key] = {key, label:t, from:f.title};
+      });
+    });
+    return Object.values(map);
+  }
+
+  function fmt(v,d){ return (v===null||v===undefined||isNaN(v))?'—':v.toFixed(d===undefined?0:d); }
+
+  // ============ TAB: EVENTS ============
+  function renderEventsTab(){
+    const gate=$('eventsGate'), content=$('eventsContent');
+    if(!State.assessment){
+      gate.innerHTML = `<div class="panel gatewrap"><div class="gicon">🎥</div><p>Chưa có video được phân tích. Sang tab Video để tải và phân tích trước.</p><button class="btn-primary" onclick="document.querySelector('[data-tab=video]').click()">→ Đến tab Video</button></div>`;
+      content.style.display='none'; return;
+    }
+    gate.innerHTML=''; content.style.display='block';
+    renderEventList('left','listL','countL');
+    renderEventList('right','listR','countR');
+  }
+  function renderEventList(side, listId, countId){
+    const arr = State.assessment.events[side].slice().sort((a,b)=>a-b);
+    $(countId).textContent = arr.length;
+    const listEl = $(listId);
+    if(!arr.length){ listEl.innerHTML = `<div class="empty">Chưa có điểm nào.</div>`; return; }
+    listEl.innerHTML = arr.map((t,i)=>`
+      <div class="eventrow"><span>#${i+1} — ${t.toFixed(2)}s</span><button data-side="${side}" data-t="${t}" class="delEventBtn">×</button></div>
+    `).join('');
+    listEl.querySelectorAll('.delEventBtn').forEach(btn=>{
+      btn.addEventListener('click', ()=>{
+        const s = btn.dataset.side, t = parseFloat(btn.dataset.t);
+        const arr2 = State.assessment.events[s];
+        const idx = arr2.findIndex(x=>Math.abs(x-t)<0.001);
+        if(idx>=0){arr2.splice(idx,1);State.assessment.manualCorrectionStatus='AI_ASSISTED_KTV_CORRECTED'; State.assessment.temporalMetricsStatus='PENDING_KTV_RECONFIRMATION';}
+        renderEventList(side, listId, countId);
+      });
+    });
+  }
+  $('addLBtn').addEventListener('click', ()=>{
+    const v = parseFloat($('addL').value);
+    if(!isNaN(v)){ State.assessment.events.left.push(v); State.assessment.manualCorrectionStatus='AI_ASSISTED_KTV_CORRECTED'; State.assessment.temporalMetricsStatus='PENDING_KTV_RECONFIRMATION'; $('addL').value=''; renderEventList('left','listL','countL'); }
+  });
+  $('addRBtn').addEventListener('click', ()=>{
+    const v = parseFloat($('addR').value);
+    if(!isNaN(v)){ State.assessment.events.right.push(v); State.assessment.manualCorrectionStatus='AI_ASSISTED_KTV_CORRECTED'; State.assessment.temporalMetricsStatus='PENDING_KTV_RECONFIRMATION'; $('addR').value=''; renderEventList('right','listR','countR'); }
+  });
+  $('recomputeBtn').addEventListener('click', ()=>{
+    State.assessment.eventsAssisted={left:State.assessment.events.left.slice(),right:State.assessment.events.right.slice()};
+    if(State.assessment.manualCorrectionStatus!=='AI_ASSISTED_KTV_CORRECTED')State.assessment.manualCorrectionStatus='AI_RAW_CONFIRMED_BY_KTV';
+    State.assessment.temporalMetricsStatus='VALIDATED_KTV_EVENTS';
+    recomputeAnalysis();
+    $('recomputeMsg').innerHTML = `<div class="noteMint" style="margin-top:10px;">✓ Đã tính lại thông số. Xem kết quả ở tab Chu kỳ / Lập luận / Báo cáo.</div>`;
+  });
+
+
+  // ============ THƯ VIỆN SINH CƠ HỌC: lớp tham chiếu độc lập ============
+  const BIO_PHASES=[
+    {name:'Tiếp xúc ban đầu',range:'0%',function:'Định vị bàn chân để bắt đầu nhận tải.',hip:'Háng ở tư thế gấp; chuẩn bị ổn định thân và chi.',knee:'Gối gần duỗi, chuẩn bị gấp nhẹ khi nhận tải.',ankle:'Cổ chân gần trung tính ở kiểu tiếp xúc gót điển hình.',muscles:'Cơ gấp mu cổ chân giữ vị trí bàn chân; cơ duỗi háng và cơ tứ đầu chuẩn bị kiểm soát nhận tải.',exam:'Kiểu tiếp xúc bàn chân; khả năng duỗi gối; tầm vận động cổ chân; dụng cụ chỉnh hình.'},
+    {name:'Đáp ứng tải',range:'0–12%',function:'Tiếp nhận trọng lượng, hấp thu lực và duy trì ổn định.',hip:'Háng chuyển từ gấp về hướng duỗi.',knee:'Gối gấp nhẹ để hấp thu lực, sau đó bắt đầu duỗi.',ankle:'Bàn chân hạ xuống có kiểm soát sau tiếp xúc gót.',muscles:'Cơ tứ đầu kiểm soát gấp gối; cơ gấp mu cổ chân kiểm soát hạ bàn chân; cơ duỗi và dạng háng ổn định thân–chậu.',exam:'Kiểm soát gối khi nhận tải, sụp gối/quá duỗi, đau và khả năng chịu trọng lượng.'},
+    {name:'Giữa thì tựa',range:'12–31%',function:'Chuyển trọng tâm qua bàn chân trụ.',hip:'Háng tiến dần về trung tính rồi duỗi.',knee:'Gối tiến về gần duỗi trong chịu tải.',ankle:'Cẳng chân tiến ra trước trên bàn chân trụ; gấp mu tăng dần.',muscles:'Cơ dép và bụng chân kiểm soát cẳng chân tiến ra trước; nhóm dạng háng góp phần giữ chậu.',exam:'Biên độ gấp mu khi chịu tải, kiểm soát gối và chậu, độ vững một chân.'},
+    {name:'Cuối thì tựa',range:'31–50%',function:'Tiếp tục tiến cơ thể qua bàn chân và chuẩn bị rời gót.',hip:'Háng đạt vùng duỗi lớn trong chu kỳ.',knee:'Gối gần duỗi rồi bắt đầu gấp khi chuyển pha.',ankle:'Gấp mu đạt vùng lớn trước khi gót nâng, sau đó chuyển sang gấp gan.',muscles:'Cơ gấp gan chân góp phần kiểm soát tiến triển cẳng chân và tạo công cơ học cuối thì tựa.',exam:'Duỗi háng, độ nâng gót, chức năng cơ gấp gan chân, chiều dài bước đối bên.'},
+    {name:'Trước thì đu',range:'50–62%',function:'Giảm tải và chuẩn bị rút ngắn chi để đưa ra trước.',hip:'Háng từ duỗi chuyển nhanh về gấp.',knee:'Gối gấp nhanh khi chân rời tải.',ankle:'Cổ chân gấp gan khi đẩy mũi chân, rồi bắt đầu hồi về.',muscles:'Cơ gấp gan chân đóng góp công cuối thì tựa; cơ gấp háng hỗ trợ bắt đầu đưa chi ra trước.',exam:'Nhấc bàn chân, biên độ gấp gối đầu thì đu, lực đẩy cuối thì tựa.'},
+    {name:'Đầu thì đu',range:'62–75%',function:'Rút ngắn chi và đưa chân ra trước, tránh vấp.',hip:'Háng gấp tăng.',knee:'Gối gấp tăng nhanh, thường tiến đến đỉnh gấp trong đầu thì đu.',ankle:'Cổ chân hồi về phía trung tính để tạo khoảng hở bàn chân.',muscles:'Nhóm gấp háng đưa đùi ra trước; nhóm gấp mu cổ chân hỗ trợ khoảng hở bàn chân; vận động gối chịu ảnh hưởng động lực liên đoạn.',exam:'Đỉnh gấp gối pha vung, trương lực cơ thẳng đùi, độ nâng mũi chân, kiểm soát chọn lọc.'},
+    {name:'Giữa thì đu',range:'75–87%',function:'Tiếp tục đưa chi ra trước khi cẳng chân tiến tới thẳng đứng.',hip:'Háng tiếp tục gấp.',knee:'Gối bắt đầu duỗi từ vị trí gấp tối đa.',ankle:'Cổ chân duy trì gần trung tính để tránh quệt mũi chân.',muscles:'Cơ gấp mu cổ chân giúp giữ vị trí bàn chân; chuyển động gối phần lớn do động lực học và điều khiển liên đoạn.',exam:'Độ nâng mũi chân, quét vòng chân/nâng chậu, phối hợp háng–gối–cổ chân.'},
+    {name:'Cuối thì đu',range:'87–100%',function:'Giảm tốc chi và chuẩn bị tiếp xúc tiếp theo.',hip:'Háng duy trì tư thế gấp trước tiếp xúc.',knee:'Gối duỗi dần về gần duỗi.',ankle:'Cổ chân gần trung tính để chuẩn bị tiếp xúc.',muscles:'Nhóm gân kheo góp phần hãm duỗi gối; cơ tứ đầu chuẩn bị ổn định gối; cơ gấp mu cổ chân giữ bàn chân.',exam:'Khả năng duỗi gối trước tiếp xúc, kiểm soát giảm tốc, tư thế bàn chân.'}
+  ];
+  let bioSelected=0;
+  function bioMedian(vals){const x=vals.filter(Number.isFinite).sort((a,b)=>a-b);return x.length?x[Math.floor(x.length/2)]:null;}
+  function renderBiomechanicsTab(){
+    const buttons=$('bioPhaseButtons'); if(!buttons)return;
+    buttons.innerHTML=BIO_PHASES.map((p,i)=>`<button class="bio-phase ${i===bioSelected?'selected':''}" data-bio="${i}">${i+1}. ${p.name}<small>${p.range}</small></button>`).join('');
+    buttons.querySelectorAll('[data-bio]').forEach(b=>b.addEventListener('click',()=>{bioSelected=Number(b.dataset.bio);renderBiomechanicsTab();}));
+    const p=BIO_PHASES[bioSelected];$('bioPhaseTitle').textContent=(bioSelected+1)+'. '+p.name+' · '+p.range;
+    $('bioPhaseDetails').innerHTML=[['Chức năng',p.function],['Khớp háng',p.hip],['Khớp gối',p.knee],['Cổ chân',p.ankle],['Nhóm cơ liên quan',p.muscles],['KTV cần kiểm tra',p.exam]].map(([a,b])=>`<div><b>${a}</b>${b}</div>`).join('');
+    const a=State.assessment; const el=$('bioPatient');
+    if(!a||!a.series){el.className='noteYellow';el.textContent='Chưa có dữ liệu video để đối chiếu. Đây chỉ là thư viện tham chiếu.';return;}
+    const out=['left','right'].map(side=>{const z=a.series[side];if(!z||!z.t||!z.t.length)return null;const n=z.t.length;return {side,n,knee:bioMedian(z.knee||[]),hip:bioMedian(z.hip||[]),ankle:bioMedian(z.ankle||[])};}).filter(Boolean);
+    el.className='noteYellow';
+    el.innerHTML='<b>Dữ liệu video hiện có (toàn video, CHƯA phân đoạn theo 8 giai đoạn):</b><br>'+out.map(x=>`${x.side==='left'?'Trái':'Phải'}: trung vị gấp gối ${x.knee===null?'—':x.knee.toFixed(1)+'°'} · gấp háng ${x.hip===null?'—':x.hip.toFixed(1)+'°'} · góc hình học cổ chân ${x.ankle===null?'—':x.ankle.toFixed(1)+'°'}`).join('<br>')+'<br><b>Không được xem đây là số đo riêng của giai đoạn đang chọn.</b> Cần xác nhận sự kiện và phân đoạn chu kỳ trước khi tính thông số theo giai đoạn.';
+  }
+
+  // ============ TAB: CYCLES ============
+  function renderCyclesTab(){
+    const gate=$('cyclesGate'), content=$('cyclesContent');
+    if(!State.assessment){
+      gate.innerHTML = `<div class="panel gatewrap"><div class="gicon">🔁</div><p>Chưa có dữ liệu. Phân tích video trước ở tab Video.</p></div>`;
+      content.style.display='none'; return;
+    }
+    gate.innerHTML=''; content.style.display='block';
+    fillCycleTable('left','cycleTableL');
+    fillCycleTable('right','cycleTableR');
+  }
+  function fillCycleTable(side, tableId){
+    const a = State.assessment;
+    const strikes = a.events[side].slice().sort((x,y)=>x-y);
+    const table = $(tableId);
+    if(strikes.length<2){ table.innerHTML = `<tbody><tr><td class="empty">Chưa đủ điểm chạm gót để tính chu kỳ (cần ≥2 điểm).</td></tr></tbody>`; return; }
+    const rows=[];
+    for(let i=0;i<strikes.length-1;i++){
+      const t0=strikes[i], t1=strikes[i+1];
+      const cycleTime = t1-t0;
+      if(cycleTime<0.15) continue;
+      const idxs=[]; const tArr=a.series[side].t;
+      for(let j=0;j<tArr.length;j++){ if(tArr[j]>=t0 && tArr[j]<=t1) idxs.push(j); }
+      const kneeVals = idxs.map(j=>a.series[side].knee[j]).filter(v=>v!==null);
+      const hipVals = idxs.map(j=>a.series[side].hip[j]).filter(v=>v!==null);
+      const heelVals = idxs.map(j=>a.series[side].heelY[j]).filter(v=>v!==null);
+      let stancePct = null;
+      if(heelVals.length>2){
+        const min=Math.min(...heelVals), max=Math.max(...heelVals);
+        if(max-min>1){ const th=min+(max-min)*0.5; stancePct = heelVals.filter(v=>v>th).length/heelVals.length*100; }
+      }
+      rows.push({
+        n:i+1, cycleTime,
+        stance: stancePct,
+        kneePeak: kneeVals.length? Math.max(...kneeVals): null,
+        hipPeak: hipVals.length? Math.max(...hipVals): null,
+      });
+    }
+    if(!rows.length){ table.innerHTML = `<tbody><tr><td class="empty">Không có chu kỳ hợp lệ.</td></tr></tbody>`; return; }
+    table.innerHTML = `
+      <thead><tr><th>#</th><th>Thời gian (s)</th><th>Thì tựa (%)</th><th>Đỉnh gập gối (°)</th><th>Đỉnh gập háng (°)</th></tr></thead>
+      <tbody>${rows.map(r=>`<tr><td>${r.n}</td><td>${fmt(r.cycleTime,2)}</td><td>${fmt(r.stance,0)}</td><td>${fmt(r.kneePeak,0)}</td><td>${fmt(r.hipPeak,0)}</td></tr>`).join('')}</tbody>
+    `;
+  }
+
+  // ============ TAB: REASONING ============
+  function renderReasoningTab(){
+    const gate=$('reasoningGate'), content=$('reasoningContent');
+    if(!State.assessment){
+      gate.innerHTML = `<div class="panel gatewrap"><div class="gicon">🧠</div><p>Chưa có dữ liệu phân tích. Sang tab Video trước.</p></div>`;
+      content.style.display='none'; return;
+    }
+    gate.innerHTML=''; content.style.display='block';
+    const a = State.assessment;
+
+    // muscle table
+    const grouped={};
+    a.muscleRows.forEach(r=>{ const key=r.m+'|'+r.type; if(!grouped[key]) grouped[key]={m:r.m,type:r.type,from:[]}; grouped[key].from.push(r.from); });
+    const rows = Object.values(grouped);
+    const typeLabel={coord:'Điều hợp/kiểm soát',balance:'Thăng bằng/thân mình',variability:'Biến thiên bước',sensory:'Cảm giác',strength:'Sức cơ cần đo',rom:'Tầm vận động',tonecheck:'Trương lực cần khám',endurance:'Sức bền',other:'Yếu tố khác',check:'Cần xác nhận'};
+    $('muscleTable').innerHTML = rows.length ? `
+      <thead><tr><th>Khiếm khuyết/chức năng</th><th>Cần xác nhận</th><th>Dựa trên dấu hiệu</th></tr></thead>
+      <tbody>${rows.map(r=>`<tr><td>${r.m}</td><td><span class="mtag">${typeLabel[r.type]||'Cần xác nhận'}</span></td><td style="color:var(--muted);font-size:11.5px;">${[...new Set(r.from)].join('; ')}</td></tr>`).join('')}</tbody>
+    ` : `<tbody><tr><td class="empty">Chưa đủ dữ liệu để tạo bản đồ khiếm khuyết cần xác nhận.</td></tr></tbody>`;
+
+    // priority list
+    const sorted = a.flags.slice().sort((x,y)=> (x.sev==='high'?0:1) - (y.sev==='high'?0:1) );
+    $('priorityList').innerHTML = sorted.length ? sorted.map((f,i)=>`
+      <li><span class="pn">${i+1}</span><div><div class="pt">${f.title}</div><div class="ps">${f.tag} · ${f.sev==='high'?'Mức độ cao':'Ghi nhận, theo dõi'}</div></div></li>
+    `).join('') : `<li class="empty">Chưa có mục ưu tiên — không phát hiện bất thường rõ rệt.</li>`;
+
+    // Lượng giá trực tiếp có cấu trúc
+    renderClinicalAssessment(a);
+    renderClinicalSynthesis(a);
+    renderEvidenceUpdate(a);
+    updateClinicalPriority(a);
+
+    $('ktvConclusion').value = a.conclusion || '';
+    $('ktvConclusion').oninput = ()=>{ a.conclusion = $('ktvConclusion').value; };
+  }
+
+  const CLINICAL_ITEMS = [
+    ['ankleDfRom','ROM gấp mu cổ chân · giá trị','Chỉ nhập số độ, ví dụ 5'],
+    ['ankleDfRomSide','ROM gấp mu · bên đo','Chỉ nhập: Trái hoặc Phải'],
+    ['ankleDfRomKnee','ROM gấp mu · tư thế gối','Chỉ nhập: Gối duỗi 0° hoặc Gối gấp 90°'],
+    ['ankleDfRomMethod','ROM gấp mu · phương pháp','Chỉ nhập: PROM hoặc AROM'],
+    ['ankleDfRomPosition','ROM gấp mu · tư thế người bệnh','Chỉ nhập một tư thế: Nằm ngửa hoặc Ngồi'],
+    ['ankleDfRom2','ROM gấp mu · quan sát 2 · giá trị','Tùy chọn; chỉ nhập số độ'],
+    ['ankleDfRom2Knee','ROM gấp mu · quan sát 2 · tư thế gối','Gối duỗi 0° hoặc Gối gấp 90°'],
+    ['pfTone','Trương lực cơ gấp gan chân','Điểm MAS / Tardieu hoặc mô tả'],
+    ['dfStrength','Sức mạnh cơ gấp mu cổ chân','MRC 0–5 hoặc lực kế'],
+    ['pfStrength','Sức mạnh cơ gấp gan chân','MRC / số lần nhón gót / lực kế'],
+    ['rectusControl','Kiểm soát cơ duỗi gối / cơ thẳng đùi','Mô tả trương lực, Duncan-Ely, kiểm soát'],
+    ['kneeHipStrength','Sức mạnh gấp gối / gấp háng','MRC hoặc lực kế'],
+    ['selectiveControl','Kiểm soát vận động chọn lọc','Mô tả'],
+    ['coordination','Điều hợp vận động / thất điều','Nghiệm pháp gót-gối, phân ly vận động, mức thất điều'],
+    ['trunkControl','Kiểm soát thân mình','Đung đưa thân, lệch trục, khả năng ổn định'],
+    ['dynamicBalance','Thăng bằng động khi đi','Mô tả / thang đo phù hợp'],
+    ['movementVariability','Biến thiên bước / độ ổn định chu kỳ','Ổn định hay thay đổi giữa các bước'],
+    ['tremor','Rung giật / run chủ ý khi vận động','Có/không, hoàn cảnh xuất hiện'],
+    ['proprioception','Cảm giác bản thể','Mô tả'],
+    ['hipAbductor','Kiểm soát cơ dạng háng','MRC / lực kế / chức năng'],
+    ['painFear','Đau / sợ ngã / tự tin khi đi','Đau 0–10 hoặc mô tả'],
+    ['afoFootwear','Ảnh hưởng nẹp cổ chân-bàn chân / giày dép','Mô tả thay đổi khi có/không nẹp'],
+    ['fiveSitStand','Đứng lên-ngồi xuống 5 lần · vận động chức năng','Thời gian / mức trợ giúp'],
+    ['functionalMobility','Mức độc lập khi đi','Chỉ nhập một mức: Độc lập / Giám sát / Trợ giúp tiếp xúc / Trợ giúp tối thiểu / Trung bình / Tối đa / FAC 0–5'],
+    ['tug','Thử nghiệm đứng dậy và đi có tính giờ (TUG) · vận động chức năng','Thời gian, giây'],
+    ['neglectPerception','Bỏ quên / nhận thức không gian','Có/không; bên ảnh hưởng; biểu hiện khi đi'],
+    ['visualVestibular','Thị giác / tiền đình / định hướng đầu-thân','Chóng mặt, dao động thị giác, phụ thuộc thị giác, quay đầu'],
+    ['endurance','Sức bền / dung nạp gắng sức','Quãng đường, thời gian, RPE, triệu chứng'],
+    ['pain','Đau ảnh hưởng dáng đi','Vị trí, NRS 0–10, thời điểm'],
+    ['assistiveDevice','Dụng cụ trợ giúp và mức trợ giúp','Gậy/khung/nẹp; độc lập/giám sát/trợ giúp'],
+    ['cognitionAttention','Chú ý / nhận thức ảnh hưởng nhiệm vụ đi','Làm nhiệm vụ kép, làm theo lệnh, mất tập trung']
+  ];
+  function renderClinicalAssessment(a){
+    a.clinical=a.clinical||{};
+    const host=$('clinicalAssessmentArea'); if(!host)return;
+    host.innerHTML=CLINICAL_ITEMS.map(([k,label,ph])=>{const v=a.clinical[k]||{status:'none',value:''};return `<div style="margin-bottom:12px"><label class="lbl">${label}</label><select data-clin-status="${k}"><option value="none" ${v.status==='none'?'selected':''}>Chưa lượng giá</option><option value="normal" ${v.status==='normal'?'selected':''}>Trong giới hạn</option><option value="abnormal" ${v.status==='abnormal'?'selected':''}>Bất thường</option></select><input data-clin-value="${k}" value="${String(v.value||'').replace(/"/g,'&quot;')}" placeholder="${ph}" style="margin-top:6px"></div>`}).join('');
+    host.querySelectorAll('[data-clin-status]').forEach(el=>el.onchange=()=>{const k=el.dataset.clinStatus;a.clinical[k]=a.clinical[k]||{};a.clinical[k].status=el.value;});
+    host.querySelectorAll('[data-clin-value]').forEach(el=>el.oninput=()=>{const k=el.dataset.clinValue;a.clinical[k]=a.clinical[k]||{status:'none'};a.clinical[k].value=el.value;});
+  }
+  function clinicalEvidence(a){
+    const abnormal=[],normal=[]; (CLINICAL_ITEMS||[]).forEach(([k,label])=>{const v=(a.clinical||{})[k]; if(!v)return; const t=v.value?`${label}: ${v.value}`:label; if(v.status==='abnormal')abnormal.push(t); if(v.status==='normal')normal.push(t);}); return {abnormal,normal};
+  }
+  function normText(v){return String(v||'').trim().toLowerCase().replace(/\s+/g,' ');}
+  function parseWalkingIndependence(v){
+    const x=normText(v);
+    if(!x)return {valid:false,level:null,label:'Chưa đánh giá'};
+    if(x==='độc lập'||x==='fac 5'||x==='fac5'||x==='5')return {valid:true,level:0,label:'Độc lập'};
+    if(x==='giám sát'||x==='supervision')return {valid:true,level:1,label:'Giám sát'};
+    if(x.includes('tiếp xúc'))return {valid:true,level:2,label:'Trợ giúp tiếp xúc'};
+    if(x.includes('tối thiểu'))return {valid:true,level:3,label:'Trợ giúp tối thiểu'};
+    if(x.includes('trung bình'))return {valid:true,level:4,label:'Trợ giúp trung bình'};
+    if(x.includes('tối đa'))return {valid:true,level:5,label:'Trợ giúp tối đa'};
+    const m=x.match(/fac\s*([0-5])/);
+    if(m){const n=+m[1]; return {valid:true,level:n===5?0:Math.max(1,6-n),label:'FAC '+n};}
+    return {valid:false,level:null,label:v};
+  }
+  function validateRomSemantics(a){
+    if(clinicalStatus(a,'ankleDfRom')==='none')return {ok:true};
+    const val=parseFloat(String(clinicalValue(a,'ankleDfRom')).replace(',','.'));
+    const side=normText(clinicalValue(a,'ankleDfRomSide'));
+    const knee=normText(clinicalValue(a,'ankleDfRomKnee'));
+    const method=normText(clinicalValue(a,'ankleDfRomMethod'));
+    const pos=normText(clinicalValue(a,'ankleDfRomPosition'));
+    const errs=[];
+    if(!Number.isFinite(val))errs.push('ROM phải là số độ');
+    if(!['trái','phải'].includes(side))errs.push('bên đo phải là Trái hoặc Phải');
+    if(!['gối duỗi 0°','gối duỗi 0','gối gấp 90°','gối gấp 90'].includes(knee))errs.push('tư thế gối phải là Gối duỗi 0° hoặc Gối gấp 90°');
+    if(!['prom','arom'].includes(method))errs.push('phương pháp phải là PROM hoặc AROM');
+    if(!['nằm ngửa','ngồi'].includes(pos))errs.push('chỉ chọn một tư thế: Nằm ngửa hoặc Ngồi');
+    return {ok:!errs.length,errors:errs};
+  }
+
+  function clinicalStatus(a,key){ return ((a.clinical||{})[key]||{}).status||'none'; }
+  function clinicalValue(a,key){ return String(((a.clinical||{})[key]||{}).value||'').trim(); }
+  function evidenceItem(a,title,keysSupport,keysReduce,summarySupport,summaryReduce){
+    const sup=keysSupport.filter(k=>clinicalStatus(a,k)==='abnormal');
+    const red=keysReduce.filter(k=>clinicalStatus(a,k)==='normal');
+    let level='pending', label='CHƯA ĐỦ BẰNG CHỨNG', body='Chưa đủ dữ liệu khám trực tiếp để cập nhật giả thuyết.';
+    if(sup.length && red.length){ level='mixed'; label='BẰNG CHỨNG HỖN HỢP'; body=summarySupport+' Đồng thời '+summaryReduce; }
+    else if(sup.length){ level='support'; label='ĐƯỢC HỖ TRỢ HƠN'; body=summarySupport; }
+    else if(red.length){ level='reduce'; label='GIẢM MỨC HỖ TRỢ'; body=summaryReduce; }
+    return {title,level,label,body};
+  }
+  function buildEvidenceUpdate(a){
+    if(!a.clinicalSavedAt) return [];
+    const items=[];
+    items.push(evidenceItem(a,'Yếu cơ / giảm khả năng sinh lực',
+      ['dfStrength','pfStrength','kneeHipStrength','hipAbductor'],
+      ['dfStrength','pfStrength','kneeHipStrength','hipAbductor'],
+      'Khám trực tiếp ghi nhận bất thường sức cơ; giữ lại giả thuyết giảm khả năng sinh lực và định lượng theo nhóm cơ liên quan.',
+      'Các nhóm cơ liên quan được ghi nhận trong giới hạn; mức hỗ trợ cho yếu cơ như cơ chế chính giảm xuống.'));
+    items.push(evidenceItem(a,'Kiểm soát vận động chọn lọc',
+      ['selectiveControl','rectusControl'],['selectiveControl','rectusControl'],
+      'Khám trực tiếp ghi nhận bất thường kiểm soát vận động chọn lọc/kiểm soát gối; cơ chế điều khiển vận động được hỗ trợ hơn.',
+      'Kiểm soát vận động chọn lọc liên quan được ghi nhận trong giới hạn; mức hỗ trợ cho cơ chế này giảm xuống.'));
+    items.push(evidenceItem(a,'Tăng trương lực / cản trở do trương lực',
+      ['pfTone'],['pfTone'],
+      'Khám trực tiếp ghi nhận bất thường trương lực; giữ lại và định lượng cơ chế liên quan trương lực.',
+      'Trương lực được ghi nhận trong giới hạn; mức hỗ trợ cho tăng trương lực như cơ chế chính giảm xuống.'));
+    if(clinicalStatus(a,'ankleDfRom')!=='none' && !(clinicalValue(a,'ankleDfRomSide')&&clinicalValue(a,'ankleDfRomKnee')&&clinicalValue(a,'ankleDfRomMethod')&&clinicalValue(a,'ankleDfRomPosition'))){
+      items.push({title:'Hạn chế tầm vận động / cơ học',level:'pending',label:'THIẾU ĐIỀU KIỆN ĐO',body:'Đã có giá trị ROM nhưng thiếu bên đo/tư thế gối/phương pháp/tư thế người bệnh. Không Rule-in hoặc Rule-out cơ học cho đến khi semantics của phép đo đầy đủ.'});
+    }else{
+      items.push(evidenceItem(a,'Hạn chế tầm vận động / cơ học',
+        ['ankleDfRom'],['ankleDfRom'],
+        'KTV đã xác nhận ROM bất thường trong điều kiện đo được mô tả; giữ lại giả thuyết cơ học.',
+        'KTV xác nhận ROM trong giới hạn trong điều kiện đo được mô tả; mức hỗ trợ cho hạn chế cơ học giảm xuống.'));
+    }
+    items.push(evidenceItem(a,'Điều hợp / thất điều / biến thiên vận động',
+      ['coordination','movementVariability','tremor'],['coordination','movementVariability','tremor'],
+      'Có bằng chứng trực tiếp về điều hợp, biến thiên bước hoặc rung giật/run chủ ý; cơ chế điều hợp được hỗ trợ hơn.',
+      'Các mục điều hợp đã khám được ghi nhận trong giới hạn; mức hỗ trợ cho cơ chế thất điều giảm xuống.'));
+    items.push(evidenceItem(a,'Kiểm soát thân mình / thăng bằng động',
+      ['trunkControl','dynamicBalance'],['trunkControl','dynamicBalance'],
+      'Có bất thường kiểm soát thân mình hoặc thăng bằng động; giữ lại như yếu tố đóng góp chức năng.',
+      'Các mục kiểm soát thân mình/thăng bằng đã khám trong giới hạn; mức hỗ trợ cho cơ chế này giảm xuống.'));
+    items.push(evidenceItem(a,'Cảm giác bản thể / tích hợp cảm giác',
+      ['proprioception'],['proprioception'],
+      'Khám trực tiếp ghi nhận bất thường cảm giác bản thể; đóng góp của đầu vào cảm giác được hỗ trợ hơn.',
+      'Cảm giác bản thể được ghi nhận trong giới hạn; mức hỗ trợ cho cơ chế cảm giác giảm xuống.'));
+    items.push(evidenceItem(a,'Bỏ quên / nhận thức không gian',
+      ['neglectPerception'],['neglectPerception'],
+      'Có bất thường bỏ quên hoặc nhận thức không gian; cần xem xét ảnh hưởng tới định hướng, va chạm và chiến lược đi.',
+      'Không ghi nhận bất thường bỏ quên/nhận thức không gian trong lượng giá hiện tại.'));
+    items.push(evidenceItem(a,'Thị giác / tiền đình / định hướng đầu-thân',
+      ['visualVestibular'],['visualVestibular'],
+      'Có bất thường thị giác/tiền đình hoặc định hướng đầu-thân; giữ lại như domain có thể ảnh hưởng ổn định khi đi.',
+      'Domain thị giác/tiền đình được ghi nhận trong giới hạn ở lượng giá hiện tại.'));
+    items.push(evidenceItem(a,'Hiệu năng vận động chức năng',
+      ['fiveSitStand','tug'],[],
+      'TUG hoặc 5 lần đứng lên-ngồi xuống được KTV đánh dấu bất thường; đây là hiệu năng chức năng, không tự suy ra sức bền hay mức độc lập.',
+      ''));
+    {
+      const wi=parseWalkingIndependence(clinicalValue(a,'functionalMobility'));
+      if(!wi.valid) items.push({title:'Mức độc lập khi đi',level:'pending',label:'CHƯA ĐỦ BẰNG CHỨNG',body:'Chưa có mức độc lập khi đi chuẩn hóa.'});
+      else if(wi.level===0) items.push({title:'Mức độc lập khi đi',level:'down',label:'ĐỘC LẬP',body:'Người bệnh được ghi nhận độc lập khi đi. Điều này không có nghĩa tốc độ, TUG hoặc 5xSTS bình thường.'});
+      else items.push({title:'Mức độc lập khi đi',level:'up',label:'CẦN TRỢ GIÚP / GIÁM SÁT',body:`Mức hiện tại: ${wi.label}. Đây là biến thứ bậc về nhu cầu trợ giúp, không phải nhãn bình thường/bất thường.`});
+    }
+    items.push(evidenceItem(a,'Sức bền / dung nạp gắng sức',
+      ['endurance'],['endurance'],
+      'Có bằng chứng trực tiếp về giảm dung nạp gắng sức từ lượng giá sức bền/RPE/triệu chứng.',
+      'Dung nạp gắng sức được ghi nhận trong giới hạn ở lượng giá hiện tại.'));
+    items.push(evidenceItem(a,'Đau / sợ ngã / yếu tố hành vi',
+      ['pain','painFear'],['pain'],
+      'Đau hoặc sợ ngã được ghi nhận; đây có thể là yếu tố điều biến hiệu năng và chiến lược dáng đi.',
+      'Không ghi nhận đau ảnh hưởng dáng đi trong lượng giá hiện tại.'));
+    return items;
+  }
+  function renderEvidenceUpdate(a){
+    const host=$('evidenceUpdateArea'); if(!host)return;
+    if(!a.clinicalSavedAt){host.innerHTML='<div class="empty">Lưu lượng giá trực tiếp để hệ thống đối chiếu bằng chứng.</div>';return;}
+    const items=buildEvidenceUpdate(a);
+    host.innerHTML=items.map(x=>`<div class="evcard"><div class="evhead"><div class="evtitle">${x.title}</div><span class="evbadge ${x.level}">${x.label}</span></div><div class="evbody">${x.body}</div></div>`).join('')+
+      `<div class="noteYellow"><b>Nguyên tắc V3.4.3:</b> AI phát hiện dấu hiệu động học; KTV cung cấp bằng chứng khám trực tiếp. Hệ thống chỉ cập nhật mức hỗ trợ của giả thuyết, không tự xác lập nguyên nhân hay chỉ định điều trị.</div>`;
+  }
+  function renderClinicalSynthesis(a){
+    let box=document.getElementById('clinicalSynthesis'); if(!box){box=document.createElement('div');box.id='clinicalSynthesis';box.className='noteMint';box.style.marginTop='10px';document.getElementById('clinicalAssessmentArea').after(box);}
+    const e=clinicalEvidence(a); if(!a.clinicalSavedAt){box.innerHTML='Chưa lưu lượng giá trực tiếp.';return;}
+    box.innerHTML=`<b>Đã lưu ${new Date(a.clinicalSavedAt).toLocaleString('vi-VN')}</b><br>${e.abnormal.length?'<b>Bằng chứng bất thường:</b> '+e.abnormal.join('; ')+'.<br>':''}${e.normal.length?'<b>Trong giới hạn:</b> '+e.normal.join('; ')+'.':''}`;
+  }
+  function updateClinicalPriority(a){
+    const e=clinicalEvidence(a), sorted=a.flags.slice().sort((x,y)=>(x.sev==='high'?0:1)-(y.sev==='high'?0:1));
+    $('priorityList').innerHTML=sorted.length?sorted.map((f,i)=>`<li><span class="pn">${i+1}</span><div><div class="pt">${f.title}</div><div class="ps">${a.clinicalSavedAt?'Đã có lượng giá KTV — xem bằng chứng bên dưới':'AI sơ bộ — cần KTV xác nhận'} · ${f.tag}</div></div></li>`).join(''):`<li class="empty">Chưa có mục ưu tiên.</li>`;
+    if(a.clinicalSavedAt && e.abnormal.length) $('priorityList').innerHTML += `<li><span class="pn">✓</span><div><div class="pt">Khiếm khuyết/chức năng đã ghi nhận qua lượng giá trực tiếp</div><div class="ps">${e.abnormal.join('; ')}</div></div></li>`;
+  }
+  document.addEventListener('click',e=>{
+    if(e.target&&e.target.id==='saveClinicalBtn'&&State.assessment){
+      const a=State.assessment;
+      const rv=validateRomSemantics(a);
+      if(!rv.ok){$('clinicalSaveMsg').innerHTML='<div class="noteYellow" style="margin-top:8px"><b>Chưa lưu:</b> '+rv.errors.join('; ')+'. Mỗi observation ROM phải có một nghĩa duy nhất.</div>';return;}
+      const wi=parseWalkingIndependence(clinicalValue(a,'functionalMobility'));
+      if(clinicalStatus(a,'functionalMobility')!=='none'&&!wi.valid){$('clinicalSaveMsg').innerHTML='<div class="noteYellow" style="margin-top:8px"><b>Chưa lưu:</b> Mức độc lập khi đi phải dùng một mức chuẩn hóa (Độc lập/Giám sát/Trợ giúp… hoặc FAC 0–5).</div>';return;}
+      a.clinicalSavedAt=new Date().toISOString();renderClinicalSynthesis(a);renderEvidenceUpdate(a);updateClinicalPriority(a);$('clinicalSaveMsg').innerHTML='<div class="noteMint" style="margin-top:8px">✓ Đã lưu lượng giá trực tiếp · Lập luận và ưu tiên đã cập nhật.</div>';
+    }
+    if(e.target&&e.target.id==='clearClinicalBtn'&&State.assessment){State.assessment.clinical={};State.assessment.clinicalSavedAt=null;renderClinicalAssessment(State.assessment);renderClinicalSynthesis(State.assessment);renderEvidenceUpdate(State.assessment);updateClinicalPriority(State.assessment);$('clinicalSaveMsg').innerHTML='<div class="noteYellow" style="margin-top:8px">Đã xóa dữ liệu lượng giá trực tiếp.</div>';}
+  });
+
+  $('saveAssessmentBtn').addEventListener('click', async ()=>{
+    if(!State.caseId){ alert('Chưa có hồ sơ đang mở.'); return; }
+    if(!State.assessment){ alert('Chưa có dữ liệu phân tích.'); return; }
+    const a = State.assessment;
+    const lightweight = {
+      date: new Date().toISOString(),
+      cadence: a.analysis.cadence, symmetryIndex: a.analysis.symmetryIndex,
+      speedMs: a.analysis.speedMs, stepLenCm: a.analysis.stepLenCm,
+      stanceL: a.analysis.stanceL, stanceR: a.analysis.stanceR,
+      romKneeL: a.analysis.romKneeL, romKneeR: a.analysis.romKneeR,
+      romHipL: a.analysis.romHipL, romHipR: a.analysis.romHipR,
+      flags: a.flags.map(f=>({title:f.title, sev:f.sev, tag:f.tag})),
+      checklist: a.checklist, clinical: a.clinical||{}, clinicalSavedAt:a.clinicalSavedAt||null, conclusion: a.conclusion,
+      schemaVersion:'3.4.3-data-semantics',researchValidity:(a.temporalMetricsStatus==='VALIDATED_KTV_EVENTS'&&a.qcState!=='FAIL_SUBJECT_LOCK')?'VALID':'PRELIMINARY_NOT_FOR_ANALYSIS',
+      measurementCondition:a.measurementCondition||null,videoQC:a.videoQC||null,trackingQC:a.trackingQC||null,qcState:a.qcState||null,qcWarnings:a.qcWarnings||[],versions:a.versions||null,
+      eventProvenance:{status:a.manualCorrectionStatus||'UNKNOWN',temporalMetricsStatus:a.temporalMetricsStatus||'UNKNOWN',raw:a.eventsRaw||null,assisted:a.eventsAssisted||{left:a.events.left.slice(),right:a.events.right.slice()}},
+      clinicalReference:{clinical:a.clinical||{},savedAt:a.clinicalSavedAt||null},
+      historyMetrics:{
+        cadence:Number.isFinite(a.analysis.cadence)?a.analysis.cadence:null,
+        symmetryIndex:Number.isFinite(a.analysis.symmetryIndex)?a.analysis.symmetryIndex:null,
+        stanceL:Number.isFinite(a.analysis.stanceL)?a.analysis.stanceL:null,
+        stanceR:Number.isFinite(a.analysis.stanceR)?a.analysis.stanceR:null
+      }
+    };
+
+    if(!hasStorage){
+      State.history = State.history || [];
+      const dup=State.history.some(h=>h&&h.date===lightweight.date&&h.historyMetrics&&lightweight.historyMetrics&&h.historyMetrics.cadence===lightweight.historyMetrics.cadence&&h.historyMetrics.symmetryIndex===lightweight.historyMetrics.symmetryIndex);
+      if(!dup) State.history.push(lightweight);
+      $('saveAssessMsg').innerHTML = `<div class="noteYellow" style="margin-top:10px;">✓ Đã thêm vào lịch sử của phiên làm việc hiện tại (không lưu trữ lâu dài vì đang mở ngoài app Claude).</div>`;
+      return;
+    }
+    try{
+      const r = await Store.get(STORE_PREFIX+State.caseId, false);
+      const record = r? JSON.parse(r.value) : {profile:State.profile, assessments:[]};
+      record.assessments = record.assessments || [];
+      const dup=record.assessments.some(h=>h&&h.date===lightweight.date&&h.historyMetrics&&lightweight.historyMetrics&&h.historyMetrics.cadence===lightweight.historyMetrics.cadence&&h.historyMetrics.symmetryIndex===lightweight.historyMetrics.symmetryIndex);
+      if(!dup) record.assessments.push(lightweight);
+      record.updatedAt = Date.now();
+      await Store.set(STORE_PREFIX+State.caseId, JSON.stringify(record), false);
+      State.history = record.assessments;
+      $('saveAssessMsg').innerHTML = `<div class="noteMint" style="margin-top:10px;">✓ Đã lưu lượng giá vào hồ sơ ${State.caseId} (tổng ${record.assessments.length} lần).</div>`;
+    }catch(e){
+      console.error(e);
+      State.history = State.history || [];
+      const dup=State.history.some(h=>h&&h.date===lightweight.date&&h.historyMetrics&&lightweight.historyMetrics&&h.historyMetrics.cadence===lightweight.historyMetrics.cadence&&h.historyMetrics.symmetryIndex===lightweight.historyMetrics.symmetryIndex);
+      if(!dup) State.history.push(lightweight);
+      $('saveAssessMsg').innerHTML = `<div class="noteYellow" style="margin-top:10px;">Lưu trữ lâu dài thất bại (${e.message}) — đã thêm vào lịch sử phiên làm việc hiện tại thay thế.</div>`;
+    }
+  });
+
+  // ============ TAB: REPORT ============
+  // ============ V3.4 MULTI-DOMAIN: MEASUREMENT -> EVIDENCE -> PROBLEM -> PLAN ============
+  const V34_DOMAINS = [
+    {id:'strength', title:'Sức cơ / khả năng sinh lực', keys:['dfStrength','pfStrength','kneeHipStrength','hipAbductor'],
+     problem:'Giảm khả năng sinh lực có thể giới hạn tạo lực, nâng chân hoặc ổn định chi trong nhiệm vụ đi.',
+     goals:['Cải thiện hiệu năng nhiệm vụ liên quan mà không tăng bù trừ hoặc mức trợ giúp.','Theo dõi thay đổi sức cơ song song với thông số dáng đi, không suy nguyên nhân từ góc khớp đơn lẻ.'],
+     ints:['Tăng cường sức cơ theo nhóm cơ được khám xác nhận yếu và gắn với nhiệm vụ chức năng.','Tăng tải có kiểm soát; tái kiểm tra xem thay đổi sức cơ có đi cùng thay đổi dáng đi hay không.'],
+     measures:['MRC/lực kế','Mức trợ giúp','Thông số dáng đi liên quan']},
+    {id:'selective', title:'Kiểm soát vận động chọn lọc', keys:['selectiveControl','rectusControl'],
+     problem:'Giảm khả năng phân ly/kiểm soát vận động có thể làm xuất hiện synergy hoặc chiến lược vận động kém chọn lọc.',
+     goals:['Cải thiện thực hiện vận động chọn lọc trong nhiệm vụ chức năng.','Giảm bù trừ khi thực hiện bước trong cùng điều kiện đo.'],
+     ints:['Luyện nhiệm vụ tập trung vào kiểm soát khớp và phân ly vận động.','Điều chỉnh tốc độ, hỗ trợ và phản hồi để ưu tiên chất lượng vận động.'],
+     measures:['Khám vận động chọn lọc','Quan sát synergy','Chất lượng bước']},
+    {id:'tone', title:'Trương lực cơ', keys:['pfTone'],
+     problem:'Bất thường trương lực được KTV xác nhận và có thể ảnh hưởng cơ học/kiểm soát chi trong một số pha dáng đi.',
+     goals:['Giảm ảnh hưởng chức năng của bất thường trương lực lên nhiệm vụ đi.'],
+     ints:['Chỉ lựa chọn chiến lược xử trí trương lực sau khi định lượng trực tiếp và xác định ảnh hưởng chức năng.','Không quy một bất thường góc từ video thành co cứng.'],
+     measures:['MAS/Tardieu','ROM động/thụ động','Thông số pha dáng đi']},
+    {id:'mechanical', title:'Tầm vận động / cơ học', keys:['ankleDfRom'],
+     problem:'Hạn chế tầm vận động/cơ học được KTV xác nhận trong điều kiện đo có cấu trúc.',
+     goals:['Theo dõi ROM và ảnh hưởng chức năng trong cùng điều kiện đo chuẩn hóa.'],
+     ints:['Chỉ can thiệp ROM/cơ học khi khám trực tiếp xác nhận hạn chế và liên hệ chức năng.'],
+     measures:['ROM chuẩn hóa','Thông số dáng đi liên quan']},
+    {id:'coord', title:'Điều hợp / thất điều', keys:['coordination','movementVariability','tremor'],
+     problem:'Bất thường điều hợp, timing hoặc biến thiên bước được khám trực tiếp xác nhận.',
+     goals:['Giảm biến thiên giữa các bước/chu kỳ trong điều kiện chuẩn hóa.','Cải thiện chuỗi bước có kiểm soát mà không tăng mức trợ giúp.'],
+     ints:['Luyện bước có mục tiêu, điều chỉnh tốc độ và độ phức tạp theo chất lượng kiểm soát.','Luyện điều hợp đa khớp trong nhiệm vụ chức năng; dùng phản hồi ngoài khi phù hợp.'],
+     measures:['Biến thiên chu kỳ','Cadence','Bất đối xứng','Chất lượng bước']},
+    {id:'trunk', title:'Thân mình / thăng bằng động', keys:['trunkControl','dynamicBalance'],
+     problem:'Kiểm soát thân mình hoặc thăng bằng động bất thường có thể góp phần vào bù trừ và bất ổn khi đi.',
+     goals:['Giảm đung đưa/lệch thân trong nhiệm vụ chuẩn hóa.','Cải thiện thăng bằng động mà không tăng nguy cơ ngã.'],
+     ints:['Luyện kiểm soát thân–chậu, chuyển trọng lượng và thăng bằng động.','Tăng thử thách hướng/tốc độ/môi trường theo mức bảo vệ phù hợp.'],
+     measures:['BBS/thang phù hợp','Nghiêng thân/chậu','Mức trợ giúp']},
+    {id:'sensory', title:'Cảm giác bản thể / tích hợp cảm giác', keys:['proprioception'],
+     problem:'Giảm cảm giác bản thể có thể ảnh hưởng định vị chi và kiểm soát bước.',
+     goals:['Cải thiện độ chính xác đặt chân và kiểm soát chi trong điều kiện an toàn.'],
+     ints:['Luyện định vị chi/chuyển trọng lượng với phản hồi phù hợp; giảm dần phản hồi khi an toàn.','Không tăng thách thức cảm giác nếu nguy cơ ngã chưa được kiểm soát.'],
+     measures:['Khám cảm giác sâu','Sai số đặt chân','Mức hỗ trợ']},
+    {id:'perception', title:'Bỏ quên / nhận thức không gian', keys:['neglectPerception'],
+     problem:'Bất thường nhận thức không gian có thể ảnh hưởng định hướng, tránh chướng ngại và an toàn khi đi.',
+     goals:['Cải thiện quét không gian và thực hiện nhiệm vụ đi an toàn trong môi trường chuẩn hóa.'],
+     ints:['Luyện quét không gian và định hướng trong nhiệm vụ chức năng có giám sát.','Tăng dần độ phức tạp môi trường sau khi kiểm soát an toàn.'],
+     measures:['Khám neglect phù hợp','Va chạm/chướng ngại','Mức giám sát']},
+    {id:'vestibular', title:'Thị giác / tiền đình / đầu-thân', keys:['visualVestibular'],
+     problem:'Bất thường thị giác-tiền đình hoặc định hướng đầu-thân có thể làm giảm ổn định khi thay đổi hướng nhìn/đầu.',
+     goals:['Duy trì ổn định tư thế và dáng đi tốt hơn khi thay đổi đầu/hướng nhìn nếu an toàn.'],
+     ints:['Lượng giá chuyên biệt trước khi tăng thử thách thị giác-tiền đình.','Tiến triển bài tập đầu–mắt–thân và dáng đi theo triệu chứng, an toàn và chẩn đoán lâm sàng.'],
+     measures:['Triệu chứng','Ổn định khi quay đầu','Thăng bằng động']},
+    {id:'walkingIndependence', title:'Mức độc lập khi đi', keys:['functionalMobility'],
+     problem:'Mức độc lập khi đi phản ánh nhu cầu trợ giúp, không đồng nghĩa với tốc độ hoặc hiệu năng vận động bình thường.',
+     goals:['Duy trì hoặc cải thiện mức độc lập khi đi an toàn.'],
+     ints:['Điều chỉnh giám sát, trợ giúp và dụng cụ theo an toàn và năng lực thực tế.'],
+     measures:['FAC hoặc thang độc lập đi lại','Mức trợ giúp']},
+    {id:'mobility', title:'Vận động chức năng / di chuyển', keys:['fiveSitStand','tug'],
+     problem:'Hiệu năng di chuyển chức năng bất thường được xác nhận; đây là outcome chức năng, không tự được coi là bằng chứng của giảm sức bền.',
+     goals:['Cải thiện hiệu năng di chuyển trong cùng điều kiện chuẩn hóa và mức trợ giúp được ghi nhận.'],
+     ints:['Luyện nhiệm vụ chức năng có mục tiêu và tiến triển theo chất lượng, an toàn và mức trợ giúp.'],
+     measures:['TUG','5 lần đứng lên-ngồi xuống','Mức trợ giúp','Tốc độ/quãng đường nếu phù hợp']},
+    {id:'endurance', title:'Sức bền / dung nạp gắng sức', keys:['endurance'],
+     problem:'Giảm dung nạp gắng sức có thể giới hạn tốc độ, quãng đường và chất lượng dáng đi độc lập với cơ chế thần kinh khu trú.',
+     goals:['Tăng thời gian/quãng đường hoạt động ở mức gắng sức phù hợp và an toàn.'],
+     ints:['Huấn luyện sức bền theo FITT sau sàng lọc an toàn tim mạch-hô hấp và khả năng vận động.'],
+     measures:['Thời gian/quãng đường','RPE','Dấu hiệu sinh tồn']},
+    {id:'pain', title:'Đau / sợ ngã / tự tin', keys:['pain','painFear'],
+     problem:'Đau hoặc sợ ngã có thể giới hạn tham gia và làm thay đổi chiến lược dáng đi.',
+     goals:['Giảm tác động của đau/sợ ngã lên nhiệm vụ đi và duy trì an toàn.'],
+     ints:['Xử lý yếu tố đau theo nguyên nhân được khám xác nhận; chuẩn hóa bảo vệ và mức trợ giúp.','Tăng tiến nhiệm vụ từng bước, không đánh đổi an toàn để đạt tốc độ.'],
+     measures:['NRS','Sợ ngã/tự tin','Suýt ngã/ngã','Mức trợ giúp']}
+  ];
+  function v34DomainState(a,d){
+    const sts=d.keys.map(k=>clinicalStatus(a,k)).filter(x=>x!=='none');
+    if(!sts.length) return 'pending';
+    if(sts.includes('abnormal') && sts.includes('normal')) return 'mixed';
+    if(sts.includes('abnormal')) return 'support';
+    return 'reduce';
+  }
+  function v34Card(d,state){
+    const lab={support:'ĐƯỢC HỖ TRỢ',mixed:'BẰNG CHỨNG HỖN HỢP',reduce:'GIẢM HỖ TRỢ',pending:'CHƯA ĐỦ BẰNG CHỨNG'}[state];
+    const plan = state==='support' || state==='mixed';
+    return `<div class="plancard"><h3>${d.title} <span class="ptag">${lab}</span></h3>
+      <div class="psection"><div class="ptitle2">Vấn đề</div><div style="font-size:13px;color:#3A4256">${plan?d.problem:'Chưa có đủ bằng chứng trực tiếp để ưu tiên domain này.'}</div></div>
+      ${plan?`<div class="psection"><div class="ptitle2">Mục tiêu gợi ý — KTV xác nhận</div><ul>${d.goals.map(x=>`<li>${x}</li>`).join('')}</ul></div>
+      <div class="psection"><div class="ptitle2">Can thiệp có điều kiện</div><ul>${d.ints.map(x=>`<li>${x}</li>`).join('')}</ul></div>
+      <div class="psection"><div class="ptitle2">Tái lượng giá</div><div>${d.measures.map(x=>`<span class="mtag weak" style="margin:3px 4px 0 0">${x}</span>`).join('')}</div></div>`:''}
+    </div>`;
+  }
+  function renderV34Plan(){
+    const box=$('v34Plan'); if(!box)return;
+    const a=State.assessment;
+    if(!a){box.innerHTML='<div class="empty">Chưa có dữ liệu lượng giá.</div>';return;}
+    if(!a.clinicalSavedAt){box.innerHTML='<div class="noteYellow">Chưa sinh kế hoạch: cần lưu lượng giá trực tiếp của KTV trước.</div>';return;}
+    const states=V34_DOMAINS.map(d=>({d,state:v34DomainState(a,d)}));
+    const supported=states.filter(x=>x.state==='support'||x.state==='mixed');
+    const reduced=states.filter(x=>x.state==='reduce');
+    const flags=(a.flags||[]).map(f=>f.title).join('; ') || 'chưa phát hiện dấu hiệu động học nổi bật';
+    let html=`<div class="noteMint"><b>Biểu diễn vấn đề đa miền:</b> AI ghi nhận <b>${flags}</b>. Sau đối chiếu khám trực tiếp, các domain được hỗ trợ gồm: <b>${supported.length?supported.map(x=>x.d.title).join('; '):'chưa có'}</b>. Các domain giảm mức hỗ trợ: ${reduced.length?reduced.map(x=>x.d.title).join('; '):'chưa có'}. <b>Vị trí tổn thương/phenotype và AFO/dụng cụ là yếu tố bối cảnh/điều biến; không tự quyết định cơ chế.</b></div>`;
+    if(!supported.length) html+='<div class="noteYellow">Chưa có domain bất thường được KTV xác nhận; hệ thống không tự sinh can thiệp từ video.</div>';
+    else html+=supported.map(x=>v34Card(x.d,x.state)).join('');
+    html+=`<div class="noteYellow"><b>Nguyên tắc nghiên cứu V3.4.3:</b> Measurement Layer chạy độc lập với phenotype. Clinical Domain Layer có thể chứa nhiều domain đồng thời. Chỉ domain có bằng chứng KTV mới đi tiếp sang Problem → Goal → Intervention. KTV/BS PHCN có quyền xác nhận, sửa hoặc loại bỏ kế hoạch.</div>`;
+    box.innerHTML=html;
+  }
+
+  // V3.5.0: phân tầng nguồn gốc. Chỉ lưu ảnh chụp kết quả AI khi chưa có bản nguyên bản.
+  function htmlSafe(v){return String(v==null?'':v).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));}
+  function renderIntegratedReport(){
+    const a=State.assessment, target=$('integratedReportContent'), status=$('integratedWorkflowStatus');
+    if(!a||!target||!status)return;
+    const original=a.aiIndependentSnapshot;
+    const flags=original&&Array.isArray(original.flags)?original.flags:[];
+    const examined=!!a.clinicalSavedAt;
+    const reviewed=!!(a.conclusion&&String(a.conclusion).trim());
+    const qc=a.qcState||'Chưa rõ';
+    status.innerHTML=`<div class="metricgrid"><div class="metric"><div class="mlabel">1 · AI phân tích</div><div class="mval" style="font-size:16px">${original?'Đã lưu':'Chưa lưu'}</div><div class="msub">Bản gốc độc lập</div></div><div class="metric"><div class="mlabel">2 · KTV lượng giá</div><div class="mval" style="font-size:16px">${examined?'Đã nhập':'Chưa nhập'}</div><div class="msub">Khám trực tiếp</div></div><div class="metric"><div class="mlabel">3 · Tổng hợp</div><div class="mval" style="font-size:16px">${examined&&reviewed?'Chờ ký duyệt':'Chưa hoàn tất'}</div><div class="msub">KTV chịu trách nhiệm kết luận</div></div></div>`;
+    const findings=flags.length?flags.map(f=>`<li>${htmlSafe(f.title)} — ${htmlSafe(f.desc||'')}</li>`).join(''):'<li>Chưa có dấu hiệu bất thường đủ dữ liệu để trình bày.</li>';
+    const evidence=examined?clinicalEvidence(a):{abnormal:[],normal:[]};
+    const comparisons=examined?buildEvidenceUpdate(a):[];
+    target.innerHTML=`<h3 style="font-size:14px">A. Phân tích độc lập từ AI</h3><p class="desc">Phiên bản ${htmlSafe(original&&original.version||'—')} · Kiểm soát chất lượng: ${htmlSafe(qc)} · Nguồn: video, thuật toán ước tính tư thế hai chiều.</p><ul style="font-size:13px">${findings}</ul><p class="desc">Đây là dấu hiệu và giả thuyết từ video; không phải chẩn đoán nguyên nhân hoặc đo hoạt động cơ.</p><h3 style="font-size:14px">B. Khám và lượng giá trực tiếp của KTV</h3>${examined?`<p style="font-size:13px"><b>Bất thường:</b> ${htmlSafe(evidence.abnormal.join('; ')||'Chưa ghi nhận')}<br><b>Trong giới hạn:</b> ${htmlSafe(evidence.normal.join('; ')||'Chưa ghi nhận')}</p>`:'<div class="noteYellow">Chưa lưu lượng giá trực tiếp. Báo cáo tích hợp chưa đủ điều kiện hoàn tất.</div>'}<h3 style="font-size:14px">C. Đối chiếu bằng chứng</h3>${comparisons.length?comparisons.map(x=>`<div class="evcard"><div class="evtitle">${htmlSafe(x.title)} — ${htmlSafe(x.label)}</div><div class="evbody">${htmlSafe(x.body)}</div></div>`).join(''):'<p class="desc">Chưa đủ bằng chứng từ hai nguồn để đối chiếu.</p>'}<h3 style="font-size:14px">D. Kết luận và quyết định của KTV</h3>${reviewed?`<p style="font-size:13px">${htmlSafe(a.conclusion)}</p>`:'<div class="noteYellow">Chưa có kết luận của KTV. Không tự động chuyển giả thuyết AI thành chỉ định điều trị.</div>'}<p class="desc">Nhật ký: AI nguyên bản không bị ghi đè khi KTV sửa sự kiện. Số liệu phụ thuộc sự kiện phải được xác nhận riêng trước khi sử dụng cho nghiên cứu.</p>`;
+  }
+  $('goClinicalWorkflowBtn').addEventListener('click',()=>gotoTab('reasoning'));
+
+  function renderReportTab(){
+    setTimeout(renderV34Plan,0);
+    const gate=$('reportGate'), content=$('reportContent');
+    if(!State.assessment){
+      gate.innerHTML = `<div class="panel gatewrap"><div class="gicon">📄</div><p>Chưa có dữ liệu để lập báo cáo. Phân tích video trước.</p></div>`;
+      content.style.display='none'; return;
+    }
+    gate.innerHTML=''; content.style.display='block';
+    if(!State.assessment.aiIndependentSnapshot){
+      State.assessment.aiIndependentSnapshot={version:'V3.5.0 · thuật toán nền V3.4.3', createdAt:new Date().toISOString(),flags:JSON.parse(JSON.stringify(State.assessment.flags||[])), analysis:JSON.parse(JSON.stringify(State.assessment.analysis||{})), eventSource:'AI nguyên bản nếu chưa hiệu chỉnh; xem nguồn sự kiện trong điều kiện đo'};
+    }
+    renderIntegratedReport();
+    const a = State.assessment.analysis;
+    const ma=State.assessment,mc=ma.measurementCondition||{},mcr=$('measurementConditionReport');
+    if(mcr)mcr.innerHTML=`<div class="${ma.qcState==='FAIL_SUBJECT_LOCK'?'noteRed':ma.qcState==='WARNING'?'noteYellow':'noteMint'}"><b>QC:</b> ${ma.qcState||'—'}${ma.trackingQC?` · frame loại ${Math.round(ma.trackingQC.rejectedRate*100)}%`:''}<br><b>Điều kiện:</b> bên ảnh hưởng ${mc.affectedSide||'—'} · ${mc.speedCondition||'—'} · ${mc.afo||'—'} · dụng cụ ${mc.device||'—'} · trợ giúp ${mc.assist||'—'} · ${mc.footwear||'—'} · bề mặt ${mc.surface||'—'}${mc.note?'<br><b>Ghi chú:</b> '+mc.note:''}<br><b>Nguồn sự kiện:</b> ${ma.manualCorrectionStatus||'—'} · <b>Temporal metrics:</b> ${ma.temporalMetricsStatus||'—'} · <b>Schema:</b> ${(ma.versions||{}).schema||'—'} · <b>Measurement:</b> ${(ma.versions||{}).measurementEngine||'—'} · <b>Reasoning:</b> ${(ma.versions||{}).reasoningRules||'—'}</div>`;
+
+    const temporalBanner=$('measurementConditionReport');
+    if(temporalBanner && ma.temporalMetricsStatus!=='VALIDATED_KTV_EVENTS'){
+      temporalBanner.innerHTML += `<div class="noteYellow" style="margin-top:8px"><b>KHÔNG DÙNG CHO PHÂN TÍCH NGHIÊN CỨU:</b> cadence, bất đối xứng và stance vẫn là số liệu sơ bộ cho tới khi KTV xác nhận/chỉnh IC–TO và bấm tính lại.</div>`;
+    }
+
+    const metrics=[];
+    const fA=State.frontalAssessment||null;
+    metrics.push(['Tần số bước · AI sơ bộ', fmt(a.cadence,0), 'bước/phút', 'Phụ thuộc phát hiện sự kiện; cần KTV xác nhận IC/TO']);
+    metrics.push(['Chỉ số bất đối xứng · AI sơ bộ', fmt(a.symmetryIndex,1), '%', 'Cần xác nhận sự kiện trước diễn giải']);
+    metrics.push(['Thì tựa — Trái · AI sơ bộ', fmt(a.stanceL,0), '% chu kỳ', 'Cần KTV xác nhận IC/TO']);
+    metrics.push(['Thì tựa — Phải · AI sơ bộ', fmt(a.stanceR,0), '% chu kỳ', 'Cần KTV xác nhận IC/TO']);
+    metrics.push(['Biên độ gối — Trái', fmt(a.romKneeL?a.romKneeL.range:null,0), '°', a.romKneeL?`Đỉnh ${fmt(a.romKneeL.max,0)}°`:'—']);
+    metrics.push(['Biên độ gối — Phải', fmt(a.romKneeR?a.romKneeR.range:null,0), '°', a.romKneeR?`Đỉnh ${fmt(a.romKneeR.max,0)}°`:'—']);
+    metrics.push(['Biên độ háng — Trái', fmt(a.romHipL?a.romHipL.range:null,0), '°', a.romHipL?`Đỉnh ${fmt(a.romHipL.max,0)}°`:'—']);
+    metrics.push(['Biên độ háng — Phải', fmt(a.romHipR?a.romHipR.range:null,0), '°', a.romHipR?`Đỉnh ${fmt(a.romHipR.max,0)}°`:'—']);
+    if(fA){
+      metrics.push(['Nghiêng chậu chính diện', fmt(fA.pelvicObliquityMax,1), '° cực đại', 'Nguồn: video chính diện độc lập']);
+      metrics.push(['Nghiêng thân chính diện', fmt(fA.trunkLeanMax,1), '° cực đại', 'Nguồn: video chính diện độc lập']);
+    }
+    if(a.stepLenCm){
+      metrics.push(['Chiều dài bước (ước tính)', fmt(a.stepLenCm,0), 'cm', '']);
+      const target = State.profile && State.profile.targetspeed ? parseFloat(State.profile.targetspeed) : null;
+      metrics.push(['Tốc độ đi · ước tính thử nghiệm', fmt(a.speedMs,2), 'm/s', 'Không dùng thay 10MWT/quãng đường-thời gian chuẩn hóa']);
+    }
+    $('metricGrid').innerHTML = metrics.map(m=>`
+      <div class="metric"><div class="mlabel">${m[0]}</div><div class="mval">${m[1]}<span class="munit"> ${m[2]}</span></div><div class="msub">${m[3]}</div></div>
+    `).join('');
+
+    if(typeof Chart !== 'undefined'){
+      try{
+        drawAngleChart('kneeChart','knee', a.curveKneeL, a.curveKneeR, {min:-5,max:80}, genRefBand('knee'));
+        drawAngleChart('hipChart','hip', a.curveHipL, a.curveHipR, {min:-15,max:45}, genRefBand('hip'));
+      }catch(e){
+        console.error(e);
+        document.querySelectorAll('.chartbox canvas').forEach(c=>{ c.parentElement.innerHTML = '<div class="empty">Không thể vẽ biểu đồ.</div>'; });
+      }
+    } else {
+      document.querySelectorAll('.chartbox canvas').forEach(c=>{ c.parentElement.innerHTML = '<div class="empty">Thư viện biểu đồ chưa tải được.</div>'; });
+    }
+
+    const flags = State.assessment.flags;
+    $('flagList').innerHTML = flags.length ? flags.map(f=>`
+      <div class="flag sev-${f.sev}">
+        <div class="fico">${f.sev==='high'?'⚠ CẦN CHÚ Ý':'GHI NHẬN'}</div>
+        <div class="ftitle">${f.title}</div><div class="fdesc">${f.desc}</div>
+        ${(f.hypotheses&&f.hypotheses.length) ? `<div class="fmuscles">${(f.hypotheses||[]).slice(0,5).map(h=>`<span class="mtag">• ${h.label}</span>`).join('')}</div>`:''}
+      </div>
+    `).join('') : `<div class="empty">Không phát hiện bất thường rõ rệt theo các ngưỡng đang dùng.</div>`;
+
+    $('planList').innerHTML = flags.length ? flags.map(f=>`
+      <div class="plancard"><h3>${f.title} <span class="ptag">${f.tag}</span></h3>
+        <div class="psection"><div class="ptitle2">🔎 Cần xác nhận trực tiếp</div><ul>${(f.diffTest||[]).map(p=>`<li>${p}</li>`).join('')||'<li>KTV lựa chọn lượng giá phù hợp theo bối cảnh lâm sàng.</li>'}</ul></div>
+        <div class="psection"><div class="ptitle2">Nguyên tắc</div><ul><li>Không suy nguyên nhân hoặc chỉ định điều trị chỉ từ video.</li></ul></div>
+      </div>
+    `).join('') : `<div class="empty">Chưa có giả thuyết cần xác nhận.</div>`;
+
+    const ce=clinicalEvidence(State.assessment); const cr=$('clinicalReport'); if(cr) cr.innerHTML=State.assessment.clinicalSavedAt?`<b>Đã lưu:</b> ${new Date(State.assessment.clinicalSavedAt).toLocaleString('vi-VN')}<br>${ce.abnormal.length?'<b>Bất thường:</b> '+ce.abnormal.join('; ')+'<br>':''}${ce.normal.length?'<b>Trong giới hạn:</b> '+ce.normal.join('; '):''}`:'Chưa lưu lượng giá trực tiếp.';
+    const er=$('evidenceReport'); if(er){ const eu=buildEvidenceUpdate(State.assessment); er.innerHTML=eu.length?eu.map(x=>`<div class="evcard"><div class="evhead"><div class="evtitle">${x.title}</div><span class="evbadge ${x.level}">${x.label}</span></div><div class="evbody">${x.body}</div></div>`).join(''):'<div class="empty">Chưa có đối chiếu bằng chứng.</div>'; }
+
+    // history
+    const hist = (State.history||[]).slice().sort((x,y)=> new Date(y.date)-new Date(x.date));
+    if(!hist.length){
+      $('historyArea').innerHTML = `<div class="empty">Chưa có lần lượng giá nào được lưu cho hồ sơ này. Lưu ở tab Lập luận.</div>`;
+    } else {
+      $('historyArea').innerHTML = hist.map((h,i)=>{
+        const prev = hist[i+1];
+        let trendHtml='';
+        if(prev && h.speedMs!=null && prev.speedMs!=null){
+          const diff = h.speedMs - prev.speedMs;
+          const cls = diff>0.02?'up':(diff<-0.02?'down':'flat');
+          trendHtml = `<span class="trend ${cls}">${diff>0?'↑':(diff<0?'↓':'→')} ${Math.abs(diff).toFixed(2)} m/s</span>`;
+        }
+        const d = new Date(h.date);
+        const hm = h.historyMetrics || {};
+        const hc = hm.cadence!=null ? hm.cadence : h.cadence;
+        const hs = hm.symmetryIndex!=null ? hm.symmetryIndex : h.symmetryIndex;
+        const legacy = !h.historyMetrics;
+        const suspectLegacy = legacy && Number.isFinite(hs) && hs>50;
+        const asymText = suspectLegacy ? 'Dữ liệu bất đối xứng cũ: cần kiểm tra lại' : `Bất đối xứng ${fmt(hs,1)}%`;
+        return `<div class="histrow"><div><div>${d.toLocaleDateString('vi-VN')}</div><div class="hd">Cadence ${fmt(hc,0)} · ${asymText} · ${(h.flags||[]).length} bất thường${legacy?' · dữ liệu phiên bản cũ':''}</div></div>${trendHtml}</div>`;
+      }).join('');
+    }
+  }
+
+  function genRefBand(joint){
+    const N=101, lo=[], hi=[];
+    for(let p=0;p<N;p++){
+      let base;
+      if(joint==='knee'){ if(p<60) base=5+12*Math.sin(Math.PI*p/60); else base=5+60*Math.sin(Math.PI*(p-60)/40); }
+      else { base=15+20*Math.cos(2*Math.PI*(p)/100); }
+      lo.push(base-10); hi.push(base+10);
+    }
+    return {lo,hi};
+  }
+  function drawAngleChart(canvasId, joint, curveL, curveR, yRange, ref){
+    const ctx=document.getElementById(canvasId).getContext('2d');
+    if(charts[joint]) charts[joint].destroy();
+    const labels=Array.from({length:101},(_,i)=>i);
+    const datasets=[];
+    datasets.push({label:'Dải tham chiếu', data:ref.hi, fill:'+1', borderColor:'rgba(58,66,86,0)', backgroundColor:'rgba(58,66,86,0.18)', pointRadius:0, borderWidth:0, tension:0.3, order:3});
+    datasets.push({label:'ref-lo', data:ref.lo, fill:false, borderColor:'rgba(58,66,86,0)', backgroundColor:'rgba(0,0,0,0)', pointRadius:0, borderWidth:0, tension:0.3, order:3});
+    if(curveL) datasets.push({label:'Trái', data:curveL, borderColor:'#4FD1C5', backgroundColor:'transparent', pointRadius:0, borderWidth:2.5, tension:0.25, order:1});
+    if(curveR) datasets.push({label:'Phải', data:curveR, borderColor:'#EF6355', backgroundColor:'transparent', pointRadius:0, borderWidth:2.5, tension:0.25, order:1});
+    charts[joint] = new Chart(ctx, {type:'line', data:{labels,datasets}, options:{
+      responsive:true, animation:false, interaction:{intersect:false,mode:'index'},
+      plugins:{legend:{display:false}, tooltip:{filter:(item)=>item.dataset.label!=='ref-lo' && item.dataset.label!=='Dải tham chiếu'}},
+      scales:{
+        x:{title:{display:true,text:'% chu kỳ dáng đi',color:'#8592A6'}, ticks:{color:'#8592A6',maxTicksLimit:6}, grid:{color:'rgba(255,255,255,0.05)'}},
+        y:{min:yRange.min, max:yRange.max, title:{display:true,text:'độ (°)',color:'#8592A6'}, ticks:{color:'#8592A6'}, grid:{color:'rgba(255,255,255,0.05)'}}
+      }
+    }});
+  }
+
+  updateCaseChip();
+})();
+</script>
+</body>
+</html>
